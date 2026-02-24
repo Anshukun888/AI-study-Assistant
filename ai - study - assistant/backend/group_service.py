@@ -135,6 +135,40 @@ def get_members(db: Session, group_id: int) -> List[Dict[str, Any]]:
     return [{"user_id": r[0], "username": r[1], "role": r[2]} for r in rows]
 
 
+def get_group_member_count(db: Session, group_id: int) -> int:
+    """Return number of members in the group."""
+    return db.query(GroupMembership).filter(GroupMembership.group_id == group_id).count()
+
+
+def get_group_last_message_snippet(db: Session, group_id: int, max_len: int = 80) -> Optional[str]:
+    """Return the latest message snippet (plain text) for the group, or None."""
+    msg = (
+        db.query(GroupMessage)
+        .filter(GroupMessage.group_id == group_id)
+        .order_by(desc(GroupMessage.created_at))
+        .limit(1)
+        .first()
+    )
+    if not msg or not msg.message:
+        return None
+    text = (msg.message or "").strip().replace("\n", " ")
+    if len(text) > max_len:
+        return text[: max_len - 1] + "…"
+    return text
+
+
+def get_group_last_message_id(db: Session, group_id: int) -> Optional[int]:
+    """Return the latest message id for the group, or None."""
+    msg = (
+        db.query(GroupMessage)
+        .filter(GroupMessage.group_id == group_id)
+        .order_by(desc(GroupMessage.created_at))
+        .limit(1)
+        .first()
+    )
+    return msg.id if msg else None
+
+
 def join_group(db: Session, group_id: int, user: User) -> GroupMembership:
     """Add user as member. Idempotent if already member."""
     if is_member(db, group_id, user.id):
@@ -500,3 +534,55 @@ def set_message_delivered(db: Session, message_id: int, group_id: int) -> bool:
     msg.message_status = "delivered"
     db.commit()
     return True
+
+
+def delete_group_file(db: Session, group_id: int, file_id: int, user_id: int) -> bool:
+    """
+    Delete a group file. Only the user who uploaded it can delete.
+    Returns True if deleted, False if not found or not allowed.
+    """
+    doc = (
+        db.query(GroupDocument)
+        .filter(
+            GroupDocument.id == file_id,
+            GroupDocument.group_id == group_id,
+        )
+        .first()
+    )
+    if not doc:
+        return False
+    if doc.uploaded_by is not None and doc.uploaded_by != user_id:
+        return False
+    db.delete(doc)
+    db.commit()
+    return True
+
+
+def edit_group_message(
+    db: Session, group_id: int, message_id: int, user_id: int, new_message: str
+) -> Optional[GroupMessage]:
+    """
+    Edit a group message. Only the message author can edit; AI/file messages cannot be edited.
+    Returns the updated message or None if not found/not allowed.
+    """
+    msg = (
+        db.query(GroupMessage)
+        .filter(
+            GroupMessage.id == message_id,
+            GroupMessage.group_id == group_id,
+        )
+        .first()
+    )
+    if not msg:
+        return None
+    if msg.user_id is None or msg.user_id != user_id:
+        return None
+    if getattr(msg, "sender_type", "user") == "ai" or getattr(msg, "message_type", "text") == "ai":
+        return None
+    if getattr(msg, "message_type", "text") == "file":
+        return None
+    msg.message = sanitize_user_input(new_message, 15000)
+    msg.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(msg)
+    return msg

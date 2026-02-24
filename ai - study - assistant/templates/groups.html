@@ -16,13 +16,13 @@
 {% endblock %}
 {% block content %}
 <div class="toast-container position-fixed top-0 end-0 p-3" id="alertToastContainer" style="z-index: 1100;"></div>
-<div class="chat-container">
-    <aside class="chat-sidebar">
+<div class="chat-container groups-page-container">
+    <aside class="chat-sidebar" id="groupsSidebar">
         <div class="sidebar-header">
-            <button class="btn btn-primary w-100 rounded-pill" id="btnCreateGroup" type="button">
+            <button class="btn btn-primary w-100 rounded-pill groups-btn-touch" id="btnCreateGroup" type="button">
                 <i class="bi bi-plus-lg me-2"></i>Create Group
             </button>
-            <button class="btn btn-outline-primary w-100 rounded-pill mt-2" id="btnJoinWithInvite" type="button" title="Paste an invite link to join a group">
+            <button class="btn btn-outline-primary w-100 rounded-pill mt-2 groups-btn-touch" id="btnJoinWithInvite" type="button" title="Paste an invite link to join a group">
                 <i class="bi bi-link-45deg me-2"></i>Join with invite link
             </button>
         </div>
@@ -30,14 +30,18 @@
             {% for item in groups_with_roles %}
             {% set g = item.group %}
             {% set role = item.role %}
-            <div class="conversation-item-wrapper d-flex align-items-center">
-                <a href="/groups/{{ g.id }}" class="conversation-item flex-grow-1 d-block text-decoration-none" data-id="{{ g.id }}">
+            {% set mc = item.member_count|default(0) %}
+            {% set snippet = item.last_message_snippet or '' %}
+            {% set ai_enabled = item.ai_enabled|default(true) %}
+            <div class="conversation-item-wrapper d-flex align-items-center" data-group-id="{{ g.id }}" data-last-message-id="{{ item.last_message_id or '' }}">
+                <a href="/groups/{{ g.id }}" class="conversation-item flex-grow-1 d-block text-decoration-none position-relative" data-id="{{ g.id }}">
                     <i class="bi bi-people-fill me-2"></i>
                     <span class="conv-title">{{ g.name }}</span>
                     <span class="badge bg-secondary ms-1">{{ role }}</span>
+                    <span class="unread-dot group-unread-dot d-none" aria-label="Unread messages"></span>
                 </a>
                 <div class="dropdown ms-1">
-                    <button class="btn btn-sm btn-link text-muted px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Group actions">
+                    <button class="btn btn-sm btn-link text-muted px-1 groups-btn-touch" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Group actions">
                         <i class="bi bi-three-dots-vertical"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -56,33 +60,79 @@
             {% endif %}
         </div>
     </aside>
-    <div class="chat-main d-flex align-items-center justify-content-center">
-        <div class="text-center py-5">
+    <!-- Mobile sidebar toggle -->
+    <button class="btn btn-outline-secondary chat-sidebar-toggle d-lg-none" type="button" id="groupsSidebarToggle" aria-label="Open groups menu">
+        <i class="bi bi-list"></i>
+    </button>
+    <div class="chat-sidebar-overlay d-lg-none" id="groupsSidebarOverlay" aria-hidden="true"></div>
+    <div class="chat-main groups-main">
+        <div class="groups-welcome text-center py-5 d-none d-md-flex align-items-center justify-content-center flex-column">
             <i class="bi bi-people display-4 text-muted"></i>
             <h4 class="mt-3">Collaborative Study Groups</h4>
             <p class="text-muted">Create a group or select one from the sidebar to chat, share documents, and use the AI assistant together.</p>
             <p class="small text-muted">Type <strong>@ai</strong> in group chat to ask the AI (e.g. @ai summarize this document, @ai quiz us).</p>
         </div>
+        <div class="groups-mobile-list d-md-none">
+            <div class="groups-cards-scroll">
+                {% for item in groups_with_roles %}
+                {% set g = item.group %}
+                {% set role = item.role %}
+                {% set mc = item.member_count|default(0) %}
+                {% set snippet = item.last_message_snippet or '' %}
+                {% set ai_enabled = item.ai_enabled|default(true) %}
+                <a href="/groups/{{ g.id }}" class="group-card-link position-relative" data-group-id="{{ g.id }}" data-last-message-id="{{ item.last_message_id or '' }}">
+                    <span class="unread-dot group-unread-dot d-none" aria-label="Unread messages"></span>
+                    <div class="group-card">
+                        <div class="group-card-header">
+                            <span class="group-card-name">{{ g.name }}</span>
+                            {% if ai_enabled %}
+                            <span class="badge bg-primary group-card-ai" title="AI available">AI</span>
+                            {% endif %}
+                        </div>
+                        <div class="group-card-meta">
+                            <span class="group-card-members"><i class="bi bi-people me-1"></i>{{ mc }} member{{ 's' if mc != 1 else '' }}</span>
+                        </div>
+                        {% if snippet %}
+                        <p class="group-card-snippet text-muted small mb-0">{{ snippet }}</p>
+                        {% else %}
+                        <p class="group-card-snippet text-muted small mb-0">No messages yet</p>
+                        {% endif %}
+                        <span class="group-card-open"><i class="bi bi-chevron-right"></i></span>
+                    </div>
+                </a>
+                {% endfor %}
+                {% if not groups %}
+                <div class="group-card group-card-empty">
+                    <p class="text-muted mb-0">No groups yet. Create one or join with an invite link.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Create Group Modal -->
-<div class="modal fade" id="createGroupModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
+<!-- Create Group Modal (full-screen on mobile) -->
+<div class="modal fade modal-fullscreen-mobile" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content create-group-modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Create Study Group</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close groups-btn-touch" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <label for="groupName" class="form-label">Group name</label>
-                    <input type="text" class="form-control" id="groupName" placeholder="e.g. CS 101 Study Group" maxlength="255">
+                    <input type="text" class="form-control form-control-touch" id="groupName" placeholder="e.g. CS 101 Study Group" maxlength="255">
                 </div>
+                <div class="mb-3">
+                    <label for="groupDescription" class="form-label">Description <span class="text-muted">(optional)</span></label>
+                    <textarea class="form-control form-control-touch" id="groupDescription" rows="2" placeholder="What is this group about?" maxlength="500"></textarea>
+                </div>
+                <p class="small text-muted mb-0">After creating, use <strong>Invite</strong> in the group to share a link with others.</p>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="btnCreateGroupSubmit"><i class="bi bi-plus me-1"></i>Create</button>
+            <div class="modal-footer modal-footer-fixed">
+                <button type="button" class="btn btn-secondary groups-btn-touch" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary groups-btn-touch" id="btnCreateGroupSubmit"><i class="bi bi-plus me-1"></i>Create</button>
             </div>
         </div>
     </div>
@@ -126,25 +176,25 @@
     </div>
 </div>
 
-<!-- Join with invite link Modal -->
-<div class="modal fade" id="joinInviteModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Join with invite link Modal (full-screen on mobile) -->
+<div class="modal fade modal-fullscreen-mobile" id="joinInviteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-link-45deg me-2"></i>Join with invite link</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close groups-btn-touch" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small">Paste the full invite link (e.g. <code>https://yoursite.com/groups/invite/abc123...</code>) or just the token.</p>
                 <div class="mb-3">
                     <label for="inviteLinkInput" class="form-label">Invite link or token</label>
-                    <input type="text" class="form-control" id="inviteLinkInput" placeholder="Paste link or token here">
+                    <input type="text" class="form-control form-control-touch" id="inviteLinkInput" placeholder="Paste link or token here">
                     <div id="inviteLinkError" class="form-text text-danger d-none"></div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="btnJoinInviteSubmit"><i class="bi bi-box-arrow-in-right me-1"></i>Join group</button>
+            <div class="modal-footer modal-footer-fixed">
+                <button type="button" class="btn btn-secondary groups-btn-touch" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary groups-btn-touch" id="btnJoinInviteSubmit"><i class="bi bi-box-arrow-in-right me-1"></i>Join group</button>
             </div>
         </div>
     </div>

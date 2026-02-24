@@ -4,18 +4,46 @@
     var currentUserId = window.CURRENT_USER_ID;
     var currentUsername = window.CURRENT_USERNAME || 'You';
     var pinnedMessageId = window.PINNED_MESSAGE_ID || null;
+    var maxUploadSizeMb = window.MAX_UPLOAD_SIZE_MB || 50;
     var ws = null;
     var messagesContainer = document.getElementById('groupChatMessages');
     var messageInput = document.getElementById('groupMessageInput');
     var groupChatForm = document.getElementById('groupChatForm');
-    var groupFileInput = document.getElementById('groupFileInput');
-    var attachmentPreview = document.getElementById('groupAttachmentPreview');
-    var pendingFile = null;
     var onlineUsers = [];
-    var selectedGroupFileId = null;
     var typingTimeout = null;
     var currentGroupRequestId = null;
+    var groupStreamingRequestId = null;
+    var groupStreamingWrap = null;
+    var groupStreamingEl = null;
     var btnGroupSend = document.getElementById('btnGroupSend');
+    var scrollEl = null;
+    var userScrolledUp = false;
+    var scrollThreshold = 80;
+    var selectedGroupFileId = null;
+
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
+    }
+
+    var groupChatSidebar = document.getElementById('groupChatSidebar');
+    var groupChatSidebarToggle = document.getElementById('groupChatSidebarToggle');
+    var groupChatSidebarOverlay = document.getElementById('groupChatSidebarOverlay');
+    if (groupChatSidebarToggle && groupChatSidebar) {
+        groupChatSidebarToggle.addEventListener('click', function() {
+            groupChatSidebar.classList.toggle('open');
+            if (groupChatSidebarOverlay) {
+                groupChatSidebarOverlay.classList.toggle('show');
+                groupChatSidebarOverlay.setAttribute('aria-hidden', groupChatSidebar.classList.contains('open') ? 'false' : 'true');
+            }
+        });
+    }
+    if (groupChatSidebarOverlay) {
+        groupChatSidebarOverlay.addEventListener('click', function() {
+            if (groupChatSidebar) groupChatSidebar.classList.remove('open');
+            groupChatSidebarOverlay.classList.remove('show');
+            groupChatSidebarOverlay.setAttribute('aria-hidden', 'true');
+        });
+    }
 
     function showToast(message, type) {
         type = type || 'info';
@@ -30,33 +58,104 @@
         bsToast.show();
         toast.addEventListener('hidden.bs.toast', function() { toast.remove(); });
     }
+
     function escapeHtml(text) {
         var div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
     }
 
+    function renderMarkdown(content) {
+        if (!content) return '';
+        if (typeof marked === 'undefined') return escapeHtml(content).replace(/\n/g, '<br>');
+        try {
+            return marked.parse(content);
+        } catch (e) {
+            console.error('Markdown parse error:', e);
+            return escapeHtml(content).replace(/\n/g, '<br>');
+        }
+    }
+
+    function highlightCode(container) {
+        if (!container || typeof Prism === 'undefined') return;
+        container.querySelectorAll('pre code').forEach(function(block) {
+            try { Prism.highlightElement(block); } catch (e) {}
+        });
+    }
+
+    function addCopyButtonsToContainer(container) {
+        if (!container) return;
+        container.querySelectorAll('pre code').forEach(function(codeBlock) {
+            var pre = codeBlock.parentElement;
+            if (!pre || pre.querySelector('.copy-code-btn')) return;
+            var copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-code-btn btn btn-sm';
+            copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+            copyBtn.title = 'Copy code';
+            copyBtn.onclick = function() {
+                var text = (codeBlock.textContent || codeBlock.innerText || '').trim();
+                navigator.clipboard.writeText(text).then(function() {
+                    copyBtn.innerHTML = '<i class="bi bi-check"></i>';
+                    copyBtn.classList.add('copied');
+                    setTimeout(function() {
+                        copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Copy failed:', err);
+                    showToast('Copy failed', 'danger');
+                });
+            };
+            pre.style.position = 'relative';
+            pre.appendChild(copyBtn);
+        });
+    }
+
     function renderMessage(m, isPinned) {
         var isUser = m.user_id === currentUserId;
         var isAi = m.message_type === 'ai' || m.sender_type === 'ai';
-        var username = m.username || (isAi ? 'AI' : 'User');
+        var isFileMsg = m.message_type === 'file' && m.file_name;
+        var canEdit = isUser && !isAi && !isFileMsg;
         var bubbleClass = isAi ? 'message-assistant' : (isUser ? 'message-user' : 'message-other');
         var icon = isAi ? 'bi-robot' : 'bi-person-circle';
-        var statusText = (m.message_status === 'delivered' ? ' ✓✓' : '');
+        var rawMessage = (m.message || '').trim();
+        var bodyHtml;
+        if (isFileMsg) {
+            bodyHtml = '<a href="/uploads/' + escapeHtml(m.file_path || '') + '" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> ' + escapeHtml(m.file_name) + '</a>';
+        } else if (isAi) {
+            bodyHtml = renderMarkdown(rawMessage);
+        } else {
+            bodyHtml = escapeHtml(rawMessage);
+        }
+        var timeStr = (m.created_at && formatTime(m.created_at)) || '';
+        var editedStr = (m.updated_at) ? ' <span class="message-edited text-muted small">(edited)</span>' : '';
+        var metaHtml = '<div class="message-meta d-flex align-items-center flex-wrap gap-1 mt-1">' +
+            (timeStr ? '<span class="message-time text-muted small">' + escapeHtml(timeStr) + '</span>' : '') + editedStr + '</div>';
+        var voteCount = (typeof m.vote_count !== 'undefined' ? m.vote_count : 0);
+        var voteHtml = (m.message_type !== 'file')
+            ? '<div class="message-vote mt-1"><button type="button" class="btn btn-sm btn-link text-muted p-0 vote-btn" data-message-id="' + m.id + '" title="Upvote"><i class="bi bi-hand-thumbs-up"></i> <span class="vote-count">' + voteCount + '</span></button></div>'
+            : '';
+        var solvedStorageKey = 'group_solved_' + groupId + '_' + m.id;
+        var isSolved = false;
+        try { isSolved = localStorage.getItem(solvedStorageKey) === '1'; } catch (e) {}
+        var solvedHtml = '<div class="message-solved-wrap mt-1"></div>';
+        var editBtnHtml = canEdit ? '<button type="button" class="btn btn-sm btn-link text-muted group-edit-message-btn" data-message-id="' + m.id + '" title="Edit message"><i class="bi bi-pencil"></i></button>' : '';
         var div = document.createElement('div');
         div.className = 'message ' + bubbleClass + (isPinned ? ' border-start border-primary border-3' : '');
         div.dataset.messageId = m.id;
         div.innerHTML = '<div class="message-avatar"><i class="bi ' + icon + '"></i></div><div class="message-content">' +
-            '<div class="message-meta small text-muted mb-1">' + escapeHtml(username) + (m.created_at ? ' · ' + formatTime(m.created_at) : '') + (statusText) + '</div>' +
-            '<div class="message-actions d-flex gap-1 align-items-center flex-wrap"></div>' +
-            '<div class="message-text markdown-content">' + (m.message_type === 'file' && m.file_name
-                ? '<a href="/uploads/' + escapeHtml(m.file_path || '') + '" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark"></i> ' + escapeHtml(m.file_name) + '</a>'
-                : (m.message_type === 'ai' && typeof marked !== 'undefined' ? marked.parse(m.message || '') : escapeHtml(m.message || ''))) + '</div>' +
-            (m.message_type !== 'file' && m.message_type !== 'ai' && (typeof m.vote_count !== 'undefined')
-                ? '<div class="message-vote mt-1"><button type="button" class="btn btn-sm btn-link text-muted p-0 vote-btn" data-message-id="' + m.id + '" title="Upvote"><i class="bi bi-hand-thumbs-up"></i> <span class="vote-count">' + (m.vote_count || 0) + '</span></button></div>'
-                : '') +
-            '</div>';
-        if (!isAi && username !== 'AI') {
+            '<div class="message-actions d-flex gap-1 align-items-center flex-wrap">' + editBtnHtml + '</div>' +
+            '<div class="message-text markdown-content" data-raw-content="' + escapeHtml(rawMessage) + '">' + bodyHtml + '</div>' +
+            metaHtml + voteHtml + solvedHtml + '</div>';
+        addCopyButtonsToContainer(div);
+        highlightCode(div);
+        var editBtn = div.querySelector('.group-edit-message-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', function() {
+                openEditMessageModal(parseInt(this.dataset.messageId, 10));
+            });
+        }
+        if (!isAi) {
             var actions = div.querySelector('.message-actions');
             var pinBtn = document.createElement('button');
             pinBtn.type = 'button';
@@ -74,6 +173,26 @@
         if (pinBtn) {
             pinBtn.addEventListener('click', function() { pinMessage(parseInt(this.dataset.messageId, 10)); });
         }
+        var solvedWrap = div.querySelector('.message-solved-wrap');
+        if (solvedWrap) {
+            var solvedBtn = document.createElement('button');
+            solvedBtn.type = 'button';
+            solvedBtn.className = 'btn btn-sm btn-link text-muted p-0 solved-btn';
+            solvedBtn.dataset.messageId = m.id;
+            solvedBtn.title = 'Mark as solved';
+            solvedBtn.innerHTML = isSolved ? '<i class="bi bi-check-circle-fill text-success me-1"></i><span class="solved-label">Solved</span>' : '<i class="bi bi-check-circle me-1"></i><span class="solved-label">Mark as solved</span>';
+            solvedBtn.addEventListener('click', function() {
+                var mid = parseInt(this.dataset.messageId, 10);
+                var key = 'group_solved_' + groupId + '_' + mid;
+                try {
+                    var now = localStorage.getItem(key) === '1';
+                    localStorage.setItem(key, now ? '0' : '1');
+                    this.innerHTML = now ? '<i class="bi bi-check-circle me-1"></i><span class="solved-label">Mark as solved</span>' : '<i class="bi bi-check-circle-fill text-success me-1"></i><span class="solved-label">Solved</span>';
+                    showToast(now ? 'Unmarked as solved' : 'Marked as solved', 'success');
+                } catch (e) {}
+            });
+            solvedWrap.appendChild(solvedBtn);
+        }
         return div;
     }
 
@@ -88,12 +207,48 @@
         } catch (e) { return iso; }
     }
 
-    function appendMessage(m) {
+    function showNewMessagesBadge() {
+        var badge = document.getElementById('groupNewMessagesBadge');
+        if (badge) badge.classList.remove('d-none');
+    }
+    function hideNewMessagesBadge() {
+        var badge = document.getElementById('groupNewMessagesBadge');
+        if (badge) badge.classList.add('d-none');
+    }
+
+    function appendMessage(m, skipNotification) {
         var isPinned = pinnedMessageId && m.id === pinnedMessageId;
         var el = renderMessage(m, isPinned);
         var loading = document.getElementById('messagesLoading');
         if (loading) loading.remove();
         messagesContainer.appendChild(el);
+        if (!skipNotification) {
+            var isFromMe = m.user_id === currentUserId;
+            if (!isFromMe || m.message_type === 'ai' || m.sender_type === 'ai') showNewMessagesBadge();
+        }
+        if (!scrollEl) scrollEl = document.querySelector('.group-chat-container .chat-messages') || messagesContainer.closest('.chat-messages');
+        if (scrollEl && messagesContainer.lastChild === el) {
+            var atBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight <= scrollThreshold;
+            if (!userScrolledUp || atBottom) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    }
+
+    function getMaxMessageId() {
+        var max = 0;
+        if (messagesContainer) {
+            messagesContainer.querySelectorAll('[data-message-id]').forEach(function(el) {
+                var id = parseInt(el.getAttribute('data-message-id'), 10);
+                if (id && id > max) max = id;
+            });
+        }
+        return max;
+    }
+
+    function markGroupAsRead() {
+        try {
+            var maxId = getMaxMessageId();
+            if (maxId > 0) localStorage.setItem('group_read_' + groupId, String(maxId));
+        } catch (e) {}
     }
 
     function loadMessages() {
@@ -102,7 +257,7 @@
             .then(function(data) {
                 var loading = document.getElementById('messagesLoading');
                 if (loading) loading.remove();
-                (data.messages || []).forEach(function(m) { appendMessage(m); });
+                (data.messages || []).forEach(function(m) { appendMessage(m, true); });
                 if (data.pinned_message_id) {
                     pinnedMessageId = data.pinned_message_id;
                     var wrap = document.getElementById('pinnedMessageWrap');
@@ -113,6 +268,7 @@
                         wrap.classList.remove('d-none');
                     }
                 }
+                markGroupAsRead();
             })
             .catch(function() {
                 var loading = document.getElementById('messagesLoading');
@@ -138,18 +294,15 @@
         var wrap = document.getElementById('typingIndicatorWrap');
         if (!wrap) return;
         var el = document.getElementById('typingIndicatorText');
-        if (el) el.textContent = username + ' is typing...';
+        var displayName = (username && username !== 'Someone') ? username : 'User';
+        if (el) el.textContent = displayName + ' is typing…';
         wrap.classList.remove('d-none');
         clearTimeout(window._typingHide);
         window._typingHide = setTimeout(function() { if (wrap) wrap.classList.add('d-none'); }, 3000);
     }
 
     function updateMessageStatus(messageId, status) {
-        var el = messagesContainer.querySelector('[data-message-id="' + messageId + '"] .message-meta');
-        if (el && status === 'delivered') {
-            var t = el.textContent;
-            if (t.indexOf('✓✓') === -1) el.textContent = t.trim() + ' ✓✓';
-        }
+        /* Status updates (e.g. delivered) no longer shown in minimal message UI */
     }
 
     function connectWs() {
@@ -163,12 +316,47 @@
             try {
                 var data = JSON.parse(ev.data);
                 if (data.type === 'message') {
+                    if (groupStreamingWrap && (data.sender_type === 'ai' || data.message_type === 'ai')) {
+                        groupStreamingWrap.remove();
+                        groupStreamingWrap = null;
+                        groupStreamingEl = null;
+                        groupStreamingRequestId = null;
+                    }
                     appendMessage(data);
                     if (data.id && currentUserId && data.user_id === currentUserId) {
                         ws.send(JSON.stringify({ type: 'delivery_ack', message_id: data.id }));
                     }
                     if (data.sender_type === 'ai' || data.message_type === 'ai') {
                         clearGroupStopState();
+                    }
+                    var atBottom = scrollEl && (scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < scrollThreshold);
+                    if (atBottom || (data.user_id === currentUserId)) markGroupAsRead();
+                } else if (data.type === 'ai_chunk') {
+                    if (data.request_id !== groupStreamingRequestId) return;
+                    if (!groupStreamingWrap) {
+                        groupStreamingWrap = document.createElement('div');
+                        groupStreamingWrap.className = 'message message-assistant streaming';
+                        groupStreamingWrap.dataset.requestId = data.request_id;
+                        groupStreamingWrap.innerHTML = '<div class="message-avatar"><i class="bi bi-robot"></i></div><div class="message-content"><div class="message-text markdown-content"></div></div>';
+                        messagesContainer.appendChild(groupStreamingWrap);
+                        groupStreamingEl = groupStreamingWrap.querySelector('.message-text');
+                    }
+                    if (groupStreamingEl) {
+                        var cur = groupStreamingEl.getAttribute('data-stream-raw') || '';
+                        cur += data.chunk || '';
+                        groupStreamingEl.setAttribute('data-stream-raw', cur);
+                        groupStreamingEl.innerHTML = renderMarkdown(cur);
+                        if (!scrollEl) scrollEl = document.querySelector('.group-chat-container .chat-messages') || messagesContainer.closest('.chat-messages');
+                        if (scrollEl && groupStreamingWrap === messagesContainer.lastElementChild) {
+                            groupStreamingWrap.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }
+                    }
+                } else if (data.type === 'ai_finished') {
+                    if (data.request_id === currentGroupRequestId) clearGroupStopState();
+                    if (data.request_id === groupStreamingRequestId) {
+                        groupStreamingWrap = null;
+                        groupStreamingEl = null;
+                        groupStreamingRequestId = null;
                     }
                 } else if (data.type === 'online') {
                     updateOnlineList(data.users);
@@ -177,15 +365,15 @@
                 } else if (data.type === 'message_status') {
                     updateMessageStatus(data.message_id, data.status);
                 } else if (data.type === 'ai_started') {
-                    // Only show loading/stop for the user who started this AI request
+                    groupStreamingRequestId = data.request_id || null;
+                    groupStreamingWrap = null;
+                    groupStreamingEl = null;
                     if (data.initiated_by === currentUserId) {
                         currentGroupRequestId = data.request_id || null;
                         setGroupSendButtonStop(true);
                     } else if (data.initiated_username) {
                         showToast(data.initiated_username + ' is generating...', 'info');
                     }
-                } else if (data.type === 'ai_finished') {
-                    if (data.request_id === currentGroupRequestId) clearGroupStopState();
                 } else if (data.type === 'history_cleared') {
                     clearAllMessagesUI();
                 } else if (data.type === 'group_deleted') {
@@ -195,6 +383,10 @@
                     if (data.username) showToast(data.username + ' left the group', 'info');
                 } else if (data.type === 'ai_busy') {
                     showToast(data.message || 'Another member is using the AI. Please wait.', 'warning');
+                } else if (data.type === 'message_updated') {
+                    if (data.id && data.message !== undefined) {
+                        applyMessageUpdate(data.id, data.message, data.updated_at || null);
+                    }
                 }
             } catch (e) {}
         };
@@ -222,6 +414,7 @@
         if (currentGroupRequestId) {
             fetch('/ai/cancel/' + currentGroupRequestId, { method: 'POST', credentials: 'include' }).catch(function() {});
             clearGroupStopState();
+            showToast('Generation stopped', 'info');
         }
     }
 
@@ -241,25 +434,18 @@
         }
     }
 
-    function sendMessage(content, messageType, filePath, fileName) {
-        messageType = messageType || 'text';
+    function sendMessage(content) {
         if (ws && ws.readyState === WebSocket.OPEN) {
-            var payload = {
+            ws.send(JSON.stringify({
                 type: 'message',
                 content: content,
-                message_type: messageType,
-                file_path: filePath || null,
-                file_name: fileName || null
-            };
-            if (selectedGroupFileId != null) payload.group_file_id = selectedGroupFileId;
-            ws.send(JSON.stringify(payload));
+                message_type: 'text',
+                file_path: null,
+                file_name: null,
+                group_file_id: selectedGroupFileId || undefined
+            }));
         }
         messageInput.value = '';
-        pendingFile = null;
-        if (attachmentPreview) {
-            attachmentPreview.innerHTML = '';
-            attachmentPreview.style.display = 'none';
-        }
     }
 
     if (btnGroupSend) {
@@ -281,21 +467,8 @@
         }
         e.preventDefault();
         var content = (messageInput.value || '').trim();
-        if (!content && !pendingFile) return;
-        if (pendingFile) {
-            var formData = new FormData();
-            formData.append('file', pendingFile);
-            fetch('/groups/' + groupId + '/upload', { method: 'POST', body: formData, credentials: 'include' })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.file_path) {
-                        sendMessage(content || 'Shared a file', 'file', data.file_path, data.file_name);
-                    }
-                })
-                .catch(function() { showToast('Upload failed', 'danger'); });
-        } else {
-            sendMessage(content);
-        }
+        if (!content) return;
+        sendMessage(content);
     });
 
     messageInput.addEventListener('input', function() {
@@ -305,26 +478,6 @@
             typingTimeout = setTimeout(function() {}, 2000);
         }
     });
-
-    if (groupFileInput) {
-        groupFileInput.addEventListener('change', function() {
-            var file = this.files && this.files[0];
-            if (!file) return;
-            if (!/\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
-                showToast('Only PDF and images allowed', 'warning');
-                return;
-            }
-            pendingFile = file;
-            attachmentPreview.style.display = 'flex';
-            attachmentPreview.innerHTML = '<span class="me-2"><i class="bi bi-file-earmark"></i> ' + escapeHtml(file.name) + '</span><button type="button" class="btn btn-sm btn-outline-secondary" id="clearGroupFile">Clear</button>';
-            document.getElementById('clearGroupFile').addEventListener('click', function() {
-                pendingFile = null;
-                groupFileInput.value = '';
-                attachmentPreview.innerHTML = '';
-                attachmentPreview.style.display = 'none';
-            });
-        });
-    }
 
     function pinMessage(messageId) {
         var form = new FormData();
@@ -401,42 +554,284 @@
             .then(function(data) {
                 var files = data.files || [];
                 if (files.length === 0) {
-                    el.innerHTML = '<span class="text-muted">No files yet</span>';
+                    el.innerHTML = '<span class="text-muted">No files</span>';
                     return;
                 }
                 el.innerHTML = '<ul class="list-unstyled mb-0">' + files.map(function(f) {
-                    var useClass = selectedGroupFileId === f.id ? 'btn-warning' : 'btn-outline-secondary';
+                    var canDelete = (f.uploaded_by != null && f.uploaded_by === currentUserId);
+                    var deleteBtn = canDelete
+                        ? ' <button type="button" class="btn btn-sm btn-link text-danger p-0 group-delete-file-btn" data-file-id="' + f.id + '" data-file-name="' + escapeHtml(f.file_name) + '" title="Delete file" aria-label="Delete file"><i class="bi bi-trash"></i></button>'
+                        : '';
+                    var useBtn = ' <button type="button" class="btn btn-sm btn-link text-primary p-0 group-use-file-btn" data-file-id="' + f.id + '" data-file-name="' + escapeHtml(f.file_name) + '" title="Use for AI context"><i class="bi bi-robot"></i></button>';
                     return '<li class="d-flex align-items-center gap-1 py-1">' +
                         '<a href="/uploads/' + escapeHtml(f.file_path || '') + '" target="_blank" class="small text-truncate flex-grow-1" title="' + escapeHtml(f.file_name) + '">' + escapeHtml(f.file_name) + '</a>' +
-                        '<button type="button" class="btn btn-sm ' + useClass + ' use-in-ai-btn" data-file-id="' + f.id + '" data-file-name="' + escapeHtml(f.file_name) + '" title="Use in AI">Use</button>' +
-                        '</li>';
+                        useBtn + deleteBtn + '</li>';
                 }).join('') + '</ul>';
-                el.querySelectorAll('.use-in-ai-btn').forEach(function(btn) {
+                el.querySelectorAll('.group-delete-file-btn').forEach(function(btn) {
                     btn.addEventListener('click', function() {
-                        var id = parseInt(this.dataset.fileId, 10);
-                        var name = this.dataset.fileName || '';
-                        if (selectedGroupFileId === id) {
-                            selectedGroupFileId = null;
-                            document.getElementById('selectedFileForAi').classList.add('d-none');
-                        } else {
-                            selectedGroupFileId = id;
-                            document.getElementById('selectedFileForAiName').textContent = name;
-                            document.getElementById('selectedFileForAi').classList.remove('d-none');
-                        }
-                        loadFiles();
+                        showDeleteFileModal(parseInt(this.dataset.fileId, 10), this.dataset.fileName || '');
+                    });
+                });
+                el.querySelectorAll('.group-use-file-btn').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        setUsingFile(parseInt(this.dataset.fileId, 10), this.dataset.fileName || '');
                     });
                 });
             })
             .catch(function() { el.innerHTML = '<span class="text-muted">Failed to load</span>'; });
     }
 
-    if (document.getElementById('clearSelectedFileForAi')) {
-        document.getElementById('clearSelectedFileForAi').addEventListener('click', function() {
-            selectedGroupFileId = null;
-            document.getElementById('selectedFileForAi').classList.add('d-none');
-            loadFiles();
+    function setUsingFile(fileId, fileName) {
+        selectedGroupFileId = fileId;
+        var wrap = document.getElementById('groupUsingFileWrap');
+        var nameEl = document.getElementById('groupUsingFileName');
+        if (wrap && nameEl) {
+            nameEl.textContent = fileName;
+            wrap.classList.remove('d-none');
+        }
+    }
+    function clearUsingFile() {
+        selectedGroupFileId = null;
+        var wrap = document.getElementById('groupUsingFileWrap');
+        var nameEl = document.getElementById('groupUsingFileName');
+        if (wrap && nameEl) {
+            nameEl.textContent = '';
+            wrap.classList.add('d-none');
+        }
+    }
+    if (document.getElementById('groupClearUsingFile')) {
+        document.getElementById('groupClearUsingFile').addEventListener('click', clearUsingFile);
+    }
+
+    var groupDeleteFileModalFileId = null;
+    function showDeleteFileModal(fileId, fileName) {
+        groupDeleteFileModalFileId = fileId;
+        var modal = document.getElementById('groupDeleteFileModal');
+        if (modal) {
+            var bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+    }
+    function hideDeleteFileModal() {
+        groupDeleteFileModalFileId = null;
+        var modal = document.getElementById('groupDeleteFileModal');
+        if (modal) {
+            var bs = bootstrap.Modal.getInstance(modal);
+            if (bs) bs.hide();
+        }
+    }
+    function confirmDeleteGroupFile() {
+        if (groupDeleteFileModalFileId == null) return;
+        var fileId = groupDeleteFileModalFileId;
+        hideDeleteFileModal();
+        fetch('/groups/' + groupId + '/files/' + fileId, { method: 'DELETE', credentials: 'include' })
+            .then(function(r) {
+                if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || 'Failed to delete'); });
+                return r.json();
+            })
+            .then(function() {
+                loadFiles();
+                showToast('File deleted.', 'success');
+            })
+            .catch(function(e) {
+                showToast(e.message || 'Failed to delete file', 'danger');
+            });
+    }
+    document.getElementById('groupDeleteFileModalCancel') && document.getElementById('groupDeleteFileModalCancel').addEventListener('click', hideDeleteFileModal);
+    document.getElementById('groupDeleteFileModalConfirm') && document.getElementById('groupDeleteFileModalConfirm').addEventListener('click', confirmDeleteGroupFile);
+
+    var ALLOWED_GROUP_EXT = /\.(pdf|png|jpg|jpeg|docx)$/i;
+    function validateGroupFile(file) {
+        if (!file.name) return 'Invalid file';
+        if (!ALLOWED_GROUP_EXT.test(file.name)) return 'Only PDF, DOCX, and images (PNG, JPG) are allowed.';
+        var maxBytes = (maxUploadSizeMb || 50) * 1024 * 1024;
+        if (file.size > maxBytes) return 'File too large (max ' + (maxUploadSizeMb || 50) + ' MB).';
+        return null;
+    }
+    function uploadGroupFile(file, onProgress, onSuccess, onError) {
+        var fd = new FormData();
+        fd.append('file', file, file.name || 'file');
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/groups/' + groupId + '/upload');
+        xhr.withCredentials = true;
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (data.document_id && data.file_name) {
+                        onSuccess(data.document_id, data.file_name);
+                    } else {
+                        onError('Invalid response');
+                    }
+                } catch (err) {
+                    onError('Invalid response');
+                }
+            } else {
+                try {
+                    var err = JSON.parse(xhr.responseText);
+                    onError(err.detail || 'Upload failed');
+                } catch (e) {
+                    onError('Upload failed (' + xhr.status + ')');
+                }
+            }
+        };
+        xhr.onerror = function() { onError('Network error'); };
+        xhr.send(fd);
+    }
+    function handleGroupFiles(files) {
+        if (!files || !files.length) return;
+        var list = Array.from(files).filter(function(f) { return f && f.name; });
+        if (!list.length) return;
+        list.forEach(function(file) {
+            var err = validateGroupFile(file);
+            if (err) {
+                showToast(err, 'danger');
+                return;
+            }
+            var chip = document.createElement('span');
+            chip.className = 'attachment-chip badge bg-secondary me-1 mb-1';
+            chip.textContent = file.name + ' …';
+            var preview = document.getElementById('groupAttachmentPreview');
+            if (preview) {
+                preview.style.display = 'block';
+                preview.appendChild(chip);
+            }
+            uploadGroupFile(
+                file,
+                function(pct) { chip.textContent = file.name + ' ' + pct + '%'; },
+                function(docId, fileName) {
+                    chip.textContent = file.name;
+                    chip.classList.remove('bg-secondary');
+                    chip.classList.add('bg-success');
+                    showToast('Uploaded: ' + fileName, 'success');
+                    loadFiles();
+                    setUsingFile(docId, fileName);
+                    setTimeout(function() {
+                        chip.remove();
+                        if (preview && !preview.children.length) preview.style.display = 'none';
+                    }, 2000);
+                },
+                function(msg) {
+                    chip.classList.remove('bg-secondary');
+                    chip.classList.add('bg-danger');
+                    chip.textContent = file.name + ' failed';
+                    showToast(msg, 'danger');
+                    setTimeout(function() {
+                        chip.remove();
+                        if (preview && !preview.children.length) preview.style.display = 'none';
+                    }, 3000);
+                }
+            );
         });
     }
+    var groupFileInput = document.getElementById('groupFileInput');
+    if (groupFileInput) {
+        groupFileInput.addEventListener('change', function() {
+            handleGroupFiles(this.files);
+            this.value = '';
+        });
+    }
+    var groupAttachFileInput = document.getElementById('groupAttachFileInput');
+    if (groupAttachFileInput) {
+        groupAttachFileInput.addEventListener('change', function() {
+            handleGroupFiles(this.files);
+            this.value = '';
+        });
+    }
+    var groupInputWrapper = document.getElementById('groupInputWrapper');
+    if (groupInputWrapper) {
+        groupInputWrapper.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('drag-over');
+        });
+        groupInputWrapper.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('drag-over');
+        });
+        groupInputWrapper.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('drag-over');
+            handleGroupFiles(e.dataTransfer && e.dataTransfer.files);
+        });
+    }
+
+    var groupEditMessageId = null;
+    function openEditMessageModal(messageId) {
+        var msgEl = messagesContainer.querySelector('[data-message-id="' + messageId + '"]');
+        if (!msgEl) return;
+        var textEl = msgEl.querySelector('.message-text');
+        var raw = (textEl && (textEl.getAttribute('data-raw-content') || textEl.textContent)) || '';
+        groupEditMessageId = messageId;
+        var input = document.getElementById('groupEditMessageInput');
+        if (input) input.value = raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+        var modal = document.getElementById('groupEditMessageModal');
+        if (modal) {
+            var bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+    }
+    function hideEditMessageModal() {
+        groupEditMessageId = null;
+        var modal = document.getElementById('groupEditMessageModal');
+        if (modal) {
+            var bs = bootstrap.Modal.getInstance(modal);
+            if (bs) bs.hide();
+        }
+    }
+    function saveEditGroupMessage() {
+        if (groupEditMessageId == null) return;
+        var messageId = groupEditMessageId;
+        var input = document.getElementById('groupEditMessageInput');
+        var newContent = (input && input.value || '').trim();
+        if (!newContent) {
+            showToast('Message cannot be empty', 'warning');
+            return;
+        }
+        hideEditMessageModal();
+        var form = new FormData();
+        form.append('content', newContent);
+        fetch('/groups/' + groupId + '/messages/' + messageId + '/edit', { method: 'POST', body: form, credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    applyMessageUpdate(messageId, data.message, data.updated_at);
+                    showToast('Message updated', 'success');
+                } else {
+                    showToast('Failed to update message', 'danger');
+                }
+            })
+            .catch(function() {
+                showToast('Failed to update message', 'danger');
+            });
+    }
+    function applyMessageUpdate(messageId, newMessage, updatedAt) {
+        var msgEl = messagesContainer.querySelector('[data-message-id="' + messageId + '"]');
+        if (!msgEl) return;
+        var textEl = msgEl.querySelector('.message-text');
+        if (textEl) {
+            textEl.setAttribute('data-raw-content', escapeHtml(newMessage));
+            textEl.innerHTML = escapeHtml(newMessage);
+        }
+        var meta = msgEl.querySelector('.message-meta');
+        if (meta) {
+            var timeSpan = meta.querySelector('.message-time');
+            var editedSpan = meta.querySelector('.message-edited');
+            if (!editedSpan) {
+                var ed = document.createElement('span');
+                ed.className = 'message-edited text-muted small';
+                ed.textContent = ' (edited)';
+                meta.appendChild(ed);
+            }
+        }
+    }
+    document.getElementById('groupEditMessageModalCancel') && document.getElementById('groupEditMessageModalCancel').addEventListener('click', hideEditMessageModal);
+    document.getElementById('groupEditMessageModalSave') && document.getElementById('groupEditMessageModalSave').addEventListener('click', saveEditGroupMessage);
 
     document.querySelectorAll('.ai-quick-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -445,6 +840,32 @@
             messageInput.focus();
         });
     });
+
+    if (document.getElementById('btnGroupStudyPlan')) {
+        document.getElementById('btnGroupStudyPlan').addEventListener('click', function() {
+            var modal = document.getElementById('groupStudyPlanModal');
+            if (modal) {
+                document.getElementById('groupStudyPlanTopic').value = '';
+                document.getElementById('groupStudyPlanType').value = 'weekly';
+                new bootstrap.Modal(modal).show();
+            }
+        });
+    }
+    if (document.getElementById('btnGroupCreateStudyPlan')) {
+        document.getElementById('btnGroupCreateStudyPlan').addEventListener('click', function() {
+            var topic = (document.getElementById('groupStudyPlanTopic') && document.getElementById('groupStudyPlanTopic').value || '').trim();
+            var planType = (document.getElementById('groupStudyPlanType') && document.getElementById('groupStudyPlanType').value) || 'weekly';
+            if (!topic) {
+                showToast('Please enter a topic', 'warning');
+                return;
+            }
+            var modalEl = document.getElementById('groupStudyPlanModal');
+            if (modalEl) bootstrap.Modal.getInstance(modalEl).hide();
+            if (typeof window.createStudyPlan === 'function') {
+                window.createStudyPlan(topic, planType, null);
+            }
+        });
+    }
 
     var btnGroupClearHistory = document.getElementById('btnGroupClearHistory');
     var groupClearHistoryModal = document.getElementById('groupClearHistoryModal');
@@ -537,34 +958,69 @@
         });
     }
 
-    var sidebarFileInput = document.getElementById('groupFileInputSidebar');
-    if (sidebarFileInput) {
-        sidebarFileInput.addEventListener('change', function() {
-            var file = this.files && this.files[0];
-            if (!file) return;
-            if (!/\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
-                showToast('Only PDF and images allowed', 'warning');
-                return;
+    scrollEl = document.querySelector('.group-chat-container .chat-messages');
+    if (scrollEl) {
+        scrollEl.addEventListener('scroll', function() {
+            var atBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < scrollThreshold;
+            userScrolledUp = !atBottom;
+            if (atBottom) {
+                hideNewMessagesBadge();
+                markGroupAsRead();
             }
-            var formData = new FormData();
-            formData.append('file', file);
-            fetch('/groups/' + groupId + '/upload', { method: 'POST', body: formData, credentials: 'include' })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.file_path) {
-                        showToast('File uploaded', 'success');
-                        loadFiles();
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            var payload = { type: 'message', content: 'Shared a file', message_type: 'file', file_path: data.file_path, file_name: data.file_name };
-                            if (data.document_id != null) payload.group_file_id = data.document_id;
-                            ws.send(JSON.stringify(payload));
-                        }
-                    }
-                })
-                .catch(function() { showToast('Upload failed', 'danger'); });
-            this.value = '';
         });
     }
+    if (messageInput) {
+        messageInput.addEventListener('focus', function() {
+            hideNewMessagesBadge();
+            markGroupAsRead();
+        });
+    }
+
+    function setupGroupVoiceInput() {
+        var btn = document.getElementById('btnGroupVoiceInput');
+        if (!btn) return;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            var recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            var isListening = false;
+            recognition.onresult = function(event) {
+                var transcript = event.results[event.results.length - 1][0].transcript.trim();
+                if (transcript && messageInput) {
+                    messageInput.value = (messageInput.value ? messageInput.value + ' ' : '') + transcript;
+                }
+            };
+            recognition.onend = function() {
+                isListening = false;
+                btn.classList.remove('voice-listening');
+                btn.innerHTML = '<i class="bi bi-mic"></i>';
+                btn.title = 'Tap to speak';
+            };
+            recognition.onerror = function() {
+                isListening = false;
+                btn.classList.remove('voice-listening');
+                btn.innerHTML = '<i class="bi bi-mic"></i>';
+            };
+            btn.onclick = function() {
+                if (isListening) {
+                    recognition.abort();
+                    return;
+                }
+                try {
+                    recognition.start();
+                    isListening = true;
+                    btn.classList.add('voice-listening');
+                    btn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+                    btn.title = 'Listening...';
+                } catch (e) {}
+            };
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+    setupGroupVoiceInput();
 
     loadMessages();
     loadFiles();

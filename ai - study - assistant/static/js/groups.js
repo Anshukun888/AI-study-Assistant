@@ -1,4 +1,30 @@
 (function() {
+    var UNREAD_STORAGE_PREFIX = 'group_read_';
+
+    function getStoredLastRead(groupId) {
+        try {
+            var v = localStorage.getItem(UNREAD_STORAGE_PREFIX + groupId);
+            return v ? parseInt(v, 10) : 0;
+        } catch (e) { return 0; }
+    }
+
+    function updateUnreadDots() {
+        document.querySelectorAll('[data-group-id][data-last-message-id]').forEach(function(wrap) {
+            var groupId = wrap.getAttribute('data-group-id');
+            var lastIdStr = wrap.getAttribute('data-last-message-id');
+            var lastId = lastIdStr ? parseInt(lastIdStr, 10) : 0;
+            var readId = getStoredLastRead(groupId);
+            var dot = wrap.querySelector('.group-unread-dot');
+            if (dot && lastId > 0 && lastId > readId) {
+                dot.classList.remove('d-none');
+            } else if (dot) {
+                dot.classList.add('d-none');
+            }
+        });
+    }
+
+    updateUnreadDots();
+
     function showToast(message, type) {
         type = type || 'info';
         var container = document.getElementById('alertToastContainer');
@@ -8,7 +34,7 @@
         toast.setAttribute('role', 'alert');
         toast.innerHTML = '<div class="d-flex"><div class="toast-body">' + escapeHtml(message) + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
         container.appendChild(toast);
-        var bsToast = new bootstrap.Toast(toast, { delay: 4000 });
+        var bsToast = new bootstrap.Toast(toast, { delay: 4500 });
         bsToast.show();
         toast.addEventListener('hidden.bs.toast', function() { toast.remove(); });
     }
@@ -17,6 +43,34 @@
         div.textContent = text || '';
         return div.innerHTML;
     }
+
+    // Mobile sidebar toggle
+    var sidebar = document.getElementById('groupsSidebar');
+    var sidebarToggle = document.getElementById('groupsSidebarToggle');
+    var sidebarOverlay = document.getElementById('groupsSidebarOverlay');
+    function openGroupsSidebar() {
+        if (sidebar) sidebar.classList.add('open');
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.add('show');
+            sidebarOverlay.setAttribute('aria-hidden', 'false');
+        }
+    }
+    function closeGroupsSidebar() {
+        if (sidebar) sidebar.classList.remove('open');
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.remove('show');
+            sidebarOverlay.setAttribute('aria-hidden', 'true');
+        }
+    }
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() { openGroupsSidebar(); });
+    }
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', function() { closeGroupsSidebar(); });
+    }
+    document.querySelectorAll('.group-card-link').forEach(function(link) {
+        link.addEventListener('click', function() { closeGroupsSidebar(); });
+    });
 
     function extractInviteToken(input) {
         var s = (input || '').trim();
@@ -74,6 +128,8 @@
         try {
             var form = new FormData();
             form.append('name', name);
+            var descEl = document.getElementById('groupDescription');
+            if (descEl && descEl.value.trim()) form.append('description', descEl.value.trim());
             var r = await fetch('/groups/create', {
                 method: 'POST',
                 body: form,

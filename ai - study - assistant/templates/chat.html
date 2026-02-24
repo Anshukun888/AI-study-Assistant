@@ -67,7 +67,7 @@
                 <i class="bi bi-people-fill me-1"></i>Study Groups
             </a>
             <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                <i class="bi bi-file-earmark-pdf me-1"></i>Upload PDF
+                <i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Files
             </button>
         </div>
     </aside>
@@ -164,9 +164,9 @@
             <form id="chatForm" class="chat-input-bar" enctype="multipart/form-data">
                 <input type="hidden" id="conversationId" name="conversation_id" value="{{ current_conversation.id if current_conversation else '' }}">
                 <div class="chat-input-top-row">
-                    <label for="fileInput" class="btn-attach" title="Attach PDF or image">
+                    <label for="fileInput" class="btn-attach" title="Attach file (PDF, image, DOCX)">
                         <i class="bi bi-paperclip"></i>
-                        <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none;">
+                        <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.docx" style="display:none;">
                     </label>
                     <button type="button" class="btn-voice-input" id="btnVoiceInput" title="Tap to speak">
                         <i class="bi bi-mic"></i>
@@ -198,13 +198,13 @@
         <div class="modal-content">
             <form id="uploadForm" method="POST" action="/upload" enctype="multipart/form-data">
                 <div class="modal-header">
-                    <h5 class="modal-title">Upload PDF</h5>
+                    <h5 class="modal-title">Upload Files</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="file" class="form-label">Select PDF or image</label>
-                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.docx" required>
                         <small class="text-muted">Max {{ MAX_UPLOAD_SIZE_MB | default(50) }} MB. PDF and images (PNG, JPG) supported.</small>
                     </div>
                 </div>

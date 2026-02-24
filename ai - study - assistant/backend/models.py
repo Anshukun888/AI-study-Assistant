@@ -273,6 +273,7 @@ class GroupMessage(Base):
     message_status = Column(String(20), nullable=False, default="sent")  # sent | delivered
     group_file_id = Column(Integer, ForeignKey("group_documents.id", ondelete="SET NULL"), nullable=True)  # optional attached file for AI context
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())  # set when message is edited
 
     # Relationships
     group = relationship("StudyGroup", back_populates="messages", foreign_keys=[group_id])

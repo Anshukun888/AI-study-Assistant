@@ -72,14 +72,31 @@
         return out;
     };
 
+    function showStudyPlanToast(message, type) {
+        type = type || 'info';
+        var container = document.getElementById('alertToastContainer');
+        if (!container) return;
+        var toast = document.createElement('div');
+        toast.className = 'toast align-items-center text-bg-' + type + ' border-0 show';
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = '<div class="d-flex"><div class="toast-body">' + (message || '').replace(/</g, '&lt;') + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+        container.appendChild(toast);
+        var bsToast = new bootstrap.Toast(toast, { delay: 4000 });
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', function() { toast.remove(); });
+    }
+
     window.createStudyPlan = async function(topic, planType, documentId) {
         const loadingModalHtml = `
             <div class="modal fade" id="studyPlanLoadingModal" tabindex="-1" data-bs-backdrop="static">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-body text-center py-4">
                             <div class="spinner-border text-primary mb-3" role="status"></div>
-                            <p class="mb-0">Generating your study plan...</p>
+                            <p class="mb-2">Generating your study plan...</p>
+                            <button type="button" class="btn btn-outline-danger study-plan-stop-btn mt-2 rounded-pill" id="studyPlanStopBtn" title="Stop or cancel generation">
+                                <i class="bi bi-stop-fill me-1"></i>Stop / Cancel
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -90,6 +107,23 @@
         document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
         const loadingModal = new bootstrap.Modal(document.getElementById('studyPlanLoadingModal'));
         loadingModal.show();
+        let currentRequestId = null;
+        let cancelled = false;
+        let abortController = new AbortController();
+        const stopBtn = document.getElementById('studyPlanStopBtn');
+        function stopAndClose() {
+            cancelled = true;
+            if (currentRequestId) {
+                fetch('/ai/cancel/' + currentRequestId, { method: 'POST', credentials: 'include' }).catch(function() {});
+            }
+            abortController.abort();
+            showStudyPlanToast('Study plan generation stopped.', 'info');
+            loadingModal.hide();
+            document.getElementById('studyPlanLoadingModal')?.remove();
+        }
+        if (stopBtn) {
+            stopBtn.onclick = stopAndClose;
+        }
 
         try {
             const formData = new FormData();
@@ -97,25 +131,84 @@
             formData.append('plan_type', planType);
             if (documentId) formData.append('document_id', documentId);
 
-            const resp = await fetch('/api/study-plans/create', {
+            const resp = await fetch('/api/study-plans/create-stream', {
                 method: 'POST',
                 body: formData,
                 credentials: 'include',
+                signal: abortController.signal,
             });
+            if (!resp.ok) throw new Error('Failed to start study plan generation');
+            if (!resp.body) throw new Error('Streaming not supported');
 
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.detail || 'Failed to create study plan');
-
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let content = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.request_id) {
+                            currentRequestId = data.request_id;
+                        } else if (data.chunk !== undefined) {
+                            content += data.chunk;
+                        } else if (data.cancelled) {
+                            loadingModal.hide();
+                            document.getElementById('studyPlanLoadingModal')?.remove();
+                            showStudyPlanToast('Study plan generation stopped.', 'info');
+                            return null;
+                        } else if (data.done) {
+                            loadingModal.hide();
+                            document.getElementById('studyPlanLoadingModal')?.remove();
+                            if (data.conversation_id && typeof window.openStudyPlanChat === 'function') {
+                                window.openStudyPlanChat(data.conversation_id, data.title || 'Study Plan', data.content);
+                            } else {
+                                showStudyPlan(data.study_plan_id, data.content);
+                            }
+                            return data;
+                        }
+                    } catch (err) { /* ignore parse */ }
+                }
+            }
+            if (buffer.trim()) {
+                try {
+                    const data = JSON.parse(buffer.trim());
+                    if (data.cancelled) {
+                        loadingModal.hide();
+                        document.getElementById('studyPlanLoadingModal')?.remove();
+                        showStudyPlanToast('Study plan generation stopped.', 'info');
+                        return null;
+                    }
+                    if (data.done) {
+                        loadingModal.hide();
+                        document.getElementById('studyPlanLoadingModal')?.remove();
+                        if (data.conversation_id && typeof window.openStudyPlanChat === 'function') {
+                            window.openStudyPlanChat(data.conversation_id, data.title || 'Study Plan', data.content);
+                        } else {
+                            showStudyPlan(data.study_plan_id, data.content);
+                        }
+                        return data;
+                    }
+                } catch (err) {}
+            }
+            if (cancelled) return null;
             loadingModal.hide();
             document.getElementById('studyPlanLoadingModal')?.remove();
-
-            if (data.conversation_id && typeof window.openStudyPlanChat === 'function') {
-                window.openStudyPlanChat(data.conversation_id, data.title || 'Study Plan', data.content);
-            } else {
-                showStudyPlan(data.study_plan_id, data.content);
-            }
-            return data;
+            showStudyPlanToast('Generation completed but no data received.', 'warning');
+            return null;
         } catch (e) {
+            if (e.name === 'AbortError' || cancelled) {
+                try { loadingModal.hide(); document.getElementById('studyPlanLoadingModal')?.remove(); } catch (err) {}
+                showStudyPlanToast('Study plan generation stopped.', 'info');
+                return null;
+            }
             loadingModal.hide();
             document.getElementById('studyPlanLoadingModal')?.remove();
             alert('Error: ' + (e.message || 'Failed to create study plan'));

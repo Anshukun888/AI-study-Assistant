@@ -61,7 +61,7 @@ from backend.auth import (
     get_or_create_user_google,
     decode_access_token,
 )
-from backend.pdf_service import extract_text_from_pdf, extract_text_with_pages, extract_text_from_image_bytes
+from backend.pdf_service import extract_text_from_pdf, extract_text_with_pages, extract_text_from_image_bytes, extract_text_from_docx_bytes
 from backend.ai_service import (
     chat_completion,
     chat_completion_with_citations,
@@ -71,6 +71,7 @@ from backend.ai_service import (
     explain_topic,
     generate_study_plan,
     generate_study_plan_stream,
+    _clean_markdown,
 )
 from backend.chat_service import (
     create_conversation,
@@ -133,6 +134,11 @@ from backend.group_service import (
     set_message_delivered,
     leave_group,
     delete_group,
+    get_group_member_count,
+    get_group_last_message_snippet,
+    get_group_last_message_id,
+    delete_group_file,
+    edit_group_message,
 )
 
 load_dotenv()
@@ -175,7 +181,20 @@ def _migrate_group_messages_if_needed():
         pass
 
 
+def _migrate_group_messages_updated_at():
+    """Add updated_at to group_messages if missing. Ignore if column already exists."""
+    try:
+        with engine.begin() as conn:
+            if "mysql" in (os.getenv("DATABASE_URL") or ""):
+                conn.execute(text("ALTER TABLE group_messages ADD COLUMN updated_at DATETIME NULL"))
+            else:
+                conn.execute(text("ALTER TABLE group_messages ADD COLUMN updated_at DATETIME"))
+    except Exception:
+        pass
+
+
 _migrate_group_messages_if_needed()
+_migrate_group_messages_updated_at()
 
 app = FastAPI(title="AI Study Assistant")
 
@@ -198,26 +217,31 @@ UPLOAD_GROUPS_DIR = UPLOAD_DIR / "groups"
 UPLOAD_GROUPS_DIR.mkdir(exist_ok=True)
 DOCUMENT_TEXT_DIR = BASE_DIR / "document_text"
 DOCUMENT_TEXT_DIR.mkdir(exist_ok=True)
+GROUP_DOCUMENT_TEXT_DIR = DOCUMENT_TEXT_DIR / "group"
+GROUP_DOCUMENT_TEXT_DIR.mkdir(exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
-ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".docx"}
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 
 
 def validate_file_upload(file: UploadFile) -> None:
-    """Validate file type: PDF or image (png, jpg, jpeg)."""
+    """Validate file type: PDF, image (png, jpg, jpeg), or DOCX."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename")
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF and images (PNG, JPG) allowed")
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF, images (PNG, JPG, JPEG), and DOCX are supported. Please upload a supported file type.",
+        )
     ct = (file.content_type or "").lower()
-    if ct and "pdf" not in ct and "image" not in ct and "octet-stream" not in ct:
-        raise HTTPException(status_code=400, detail="Invalid file type")
+    if ct and "pdf" not in ct and "image" not in ct and "octet-stream" not in ct and "wordprocessingml" not in ct and "application/zip" not in ct:
+        pass
 
 
 def get_document_for_user(db: Session, doc_id: int, user_id: int) -> Document:
@@ -415,7 +439,7 @@ CANCELLED_MESSAGE = "Response stopped by user"
 
 @app.post("/ai/cancel/{request_id}")
 async def ai_cancel(request_id: str):
-    """Mark an in-flight AI generation as cancelled. Safe to call multiple times or for unknown id."""
+    """Mark an in-flight AI generation as cancelled. Per-request_id: only that user's AI run is stopped; other users' requests are unaffected. Safe to call multiple times or for unknown id."""
     cancelled = cancel_request(request_id)
     return {"success": True, "cancelled": cancelled}
 
@@ -1285,14 +1309,29 @@ async def upload_document(
 ):
     validate_file_upload(file)
     ext = Path(file.filename or "").suffix.lower()
+    file_content = await file.read()
+    if len(file_content) / (1024 * 1024) > MAX_UPLOAD_SIZE_MB:
+        raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_SIZE_MB} MB)")
     if ext in ALLOWED_IMAGE_EXTENSIONS:
-        file_content = await file.read()
-        if len(file_content) / (1024 * 1024) > MAX_UPLOAD_SIZE_MB:
-            raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_SIZE_MB} MB)")
         text = extract_text_from_image_bytes(file_content, file.filename or "")
         page_texts = {1: text}
+    elif ext == ".docx":
+        text = extract_text_from_docx_bytes(file_content)
+        if text is None:
+            raise HTTPException(
+                status_code=400,
+                detail="DOCX text extraction requires python-docx. Install with: pip install python-docx. You can still upload PDF and images.",
+            )
+        page_texts = {1: text}
     else:
-        text, page_texts = await extract_text_with_pages(file, max_size_mb=MAX_UPLOAD_SIZE_MB)
+        class AsyncFileLike:
+            def __init__(self, data: bytes, filename: str):
+                self._data = data
+                self.filename = filename or "document.pdf"
+            async def read(self):
+                return self._data
+        file_like = AsyncFileLike(file_content, file.filename or "document.pdf")
+        text, page_texts = await extract_text_with_pages(file_like, max_size_mb=MAX_UPLOAD_SIZE_MB)
 
     # Persist extracted text on disk
     safe_name = (file.filename or "document").replace("/", "_").replace("\\", "_")
@@ -1384,10 +1423,11 @@ def _get_user_from_ws_cookie(websocket: WebSocket, db: Session) -> Optional[User
 @app.post("/groups/create")
 async def groups_create(
     name: str = Form(...),
+    description: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a new study group."""
+    """Create a new study group. Description is optional and may be used in the future."""
     name = (name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Group name is required")
@@ -1515,6 +1555,7 @@ async def groups_get_messages(
             "file_name": getattr(m, "file_name", None),
             "group_file_id": getattr(m, "group_file_id", None),
             "created_at": m.created_at.isoformat() if m.created_at else None,
+            "updated_at": (lambda u: u.isoformat() if u else None)(getattr(m, "updated_at", None)),
             "vote_count": vote_counts.get(m.id, 0),
         })
     pinned = get_pinned_message(db, group_id)
@@ -1533,6 +1574,41 @@ async def groups_list_files(
     return {"files": get_group_files(db, group_id)}
 
 
+@app.delete("/groups/{group_id}/files/{file_id}")
+async def groups_delete_file(
+    group_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a group file. Only the user who uploaded it can delete."""
+    if not is_member(db, group_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+    doc = get_group_document_by_id(db, group_id, file_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="File not found")
+    if doc.uploaded_by is not None and doc.uploaded_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the uploader can delete this file")
+    # Remove uploaded file from disk
+    if doc.file_path:
+        full_path = UPLOAD_DIR / doc.file_path
+        if full_path.exists():
+            try:
+                os.remove(full_path)
+            except OSError:
+                pass
+    # Remove extracted text file from document_text/group/{group_id}/
+    safe_name = (doc.file_name or "file").replace("/", "_").replace("\\", "_")
+    group_text_path = GROUP_DOCUMENT_TEXT_DIR / str(group_id) / f"{safe_name}.txt"
+    if group_text_path.exists():
+        try:
+            os.remove(group_text_path)
+        except OSError:
+            pass
+    delete_group_file(db, group_id, file_id, current_user.id)
+    return {"success": True}
+
+
 @app.post("/groups/{group_id}/upload")
 async def groups_upload(
     group_id: int,
@@ -1540,7 +1616,7 @@ async def groups_upload(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Upload a PDF or image to a group. Only members allowed. Stored under uploads/groups/{group_id}/."""
+    """Upload a PDF, image, or DOCX to a group. Only members allowed. Stored under uploads/groups/{group_id}/."""
     if not is_member(db, group_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member of this group")
     validate_file_upload(file)
@@ -1558,29 +1634,45 @@ async def groups_upload(
     extracted_text = ""
     if ext in ALLOWED_IMAGE_EXTENSIONS:
         extracted_text = extract_text_from_image_bytes(file_content, file.filename or "")
+    elif ext == ".docx":
+        docx_text = extract_text_from_docx_bytes(file_content)
+        extracted_text = docx_text or ""
     else:
         try:
             from backend.pdf_service import extract_text_with_pages
+
             class AsyncFileLike:
                 def __init__(self, data: bytes, filename: str):
                     self._data = data
                     self.filename = filename
+
                 async def read(self):
                     return self._data
+
             file_like = AsyncFileLike(file_content, file.filename or safe_name)
             extracted_text, _ = await extract_text_with_pages(file_like, max_size_mb=MAX_UPLOAD_SIZE_MB)
         except Exception:
             extracted_text = ""
+    text_to_store = (extracted_text[:100000] if extracted_text else "") or ""
     doc = GroupDocument(
         group_id=group_id,
         file_name=file.filename or safe_name,
         file_path=relative_path,
-        extracted_text=extracted_text[:100000] if extracted_text else None,
+        extracted_text=text_to_store if text_to_store else None,
         uploaded_by=current_user.id,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    # Store extracted text on disk under document_text/group/{group_id}/ for consistency and memory-efficient loading
+    group_text_dir = GROUP_DOCUMENT_TEXT_DIR / str(group_id)
+    group_text_dir.mkdir(parents=True, exist_ok=True)
+    text_file_path = group_text_dir / f"{safe_name}.txt"
+    try:
+        with open(text_file_path, "w", encoding="utf-8") as f:
+            f.write(text_to_store)
+    except OSError:
+        pass
     return {"success": True, "document_id": doc.id, "file_name": doc.file_name, "file_path": relative_path}
 
 
@@ -1639,12 +1731,22 @@ async def groups_page(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Groups list page (sidebar + create). Pass groups with role for Leave/Delete UI."""
+    """Groups list page (sidebar + create). Pass groups with role, member_count, last_message_snippet, ai_enabled."""
     groups = get_user_groups(db, current_user.id)
-    groups_with_roles = [
-        {"group": g, "role": get_user_role(db, g.id, current_user.id) or "member"}
-        for g in groups
-    ]
+    groups_with_roles = []
+    for g in groups:
+        role = get_user_role(db, g.id, current_user.id) or "member"
+        member_count = get_group_member_count(db, g.id)
+        last_snippet = get_group_last_message_snippet(db, g.id, max_len=80)
+        last_message_id = get_group_last_message_id(db, g.id)
+        groups_with_roles.append({
+            "group": g,
+            "role": role,
+            "member_count": member_count,
+            "last_message_snippet": last_snippet,
+            "last_message_id": last_message_id,
+            "ai_enabled": True,
+        })
     return templates.TemplateResponse(
         "groups.html",
         {"request": request, "user": current_user, "groups": groups, "groups_with_roles": groups_with_roles},
@@ -1679,6 +1781,38 @@ async def groups_unpin(
         raise HTTPException(status_code=403, detail="Not allowed")
     group_unpin_message(db, group_id)
     return {"success": True}
+
+
+@app.post("/groups/{group_id}/messages/{message_id}/edit")
+async def groups_edit_message(
+    group_id: int,
+    message_id: int,
+    content: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Edit a group message. Only the author can edit their own text messages."""
+    if not is_member(db, group_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+    updated = edit_group_message(db, group_id, message_id, current_user.id, content.strip())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Message not found or you cannot edit it")
+    # Broadcast to all connected clients in the group
+    for _wid, (ws, _uid, _uname) in list((group_connections.get(group_id) or {}).items()):
+        try:
+            await ws.send_json({
+                "type": "message_updated",
+                "id": updated.id,
+                "message": updated.message,
+                "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
+            })
+        except Exception:
+            pass
+    return {
+        "success": True,
+        "message": updated.message,
+        "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
+    }
 
 
 @app.post("/groups/{group_id}/messages/{message_id}/vote")
@@ -1799,16 +1933,26 @@ async def _run_group_ai_background(
 ) -> None:
     """
     Run group AI in a background task so the WebSocket is not blocked.
-    Uses its own DB session; does not block other users or other @ai requests.
+    Streams chunks to all clients when available; uses last 10 messages + group docs for context.
     """
     db = get_db_session()
+    full_text = ""
     try:
-        ai_text = await _handle_group_ai(
+        async for kind, value in _stream_group_ai_response(
             db, group_id, ai_query, initiator_username,
             request_id=request_id,
             group_file_id=group_file_id,
-        )
-        ai_msg = add_group_message(db, group_id, None, ai_text, message_type="ai", sender_type="ai")
+        ):
+            if kind == "chunk":
+                for _wid, (ws2, _u2, _n2) in list((group_connections.get(group_id) or {}).items()):
+                    try:
+                        await ws2.send_json({"type": "ai_chunk", "request_id": request_id, "chunk": value})
+                    except Exception:
+                        pass
+                full_text += value
+            else:
+                full_text = value
+        ai_msg = add_group_message(db, group_id, None, full_text, message_type="ai", sender_type="ai")
         ai_payload = {
             "type": "message",
             "id": ai_msg.id,
@@ -1977,6 +2121,95 @@ async def _handle_group_ai(
     return response_text
 
 
+async def _stream_group_ai_response(
+    db: Session,
+    group_id: int,
+    user_message: str,
+    username: str,
+    request_id: Optional[str],
+    group_file_id: Optional[int],
+):
+    """
+    Async generator: yields ("chunk", chunk) for streaming chat, or ("full", text) for single-shot tools.
+    Limits context to last 10 messages + group documents for performance.
+    """
+    from backend.ai_service import detect_intent, generate_mcq, generate_summary, explain_topic
+    prompt = user_message.strip()
+    if not prompt:
+        yield ("full", "Please ask a question after @ai.")
+        return
+    lower = prompt.lower()
+    recent_list = get_recent_messages_for_context(db, group_id, count=10)
+    context = get_context_for_group_ai(db, group_id, recent_messages=recent_list, primary_file_id=group_file_id)
+
+    if "summarize" in lower or "summary" in lower or "summarise" in lower:
+        if not context or context.strip() in ("", "No specific context."):
+            yield ("full", "Share or select a document first, then ask to summarize.")
+            return
+        out = await generate_summary(context, request_id=request_id)
+        yield ("full", _clean_markdown(out))
+        return
+
+    if "quiz" in lower or "mcq" in lower or "multiple choice" in lower:
+        text = context.strip() or "General knowledge."
+        result = await generate_mcq(text, request_id=request_id)
+        md = result.get("markdown") or result.get("json") or str(result)
+        yield ("full", _clean_markdown(md))
+        return
+
+    if ("exam" in lower and ("predict" in lower or "question" in lower)) or "predict questions" in lower:
+        if not context or context.strip() in ("", "No specific context."):
+            yield ("full", "Share or select a document first, then ask for exam prediction.")
+            return
+        subject = "the document" if "topic" not in lower else prompt
+        result = await predict_from_document_text(context, subject_or_topic=subject, request_id=request_id)
+        if isinstance(result, dict):
+            if result.get("message") == INSUFFICIENT_DATA_MESSAGE:
+                yield ("full", result.get("message", INSUFFICIENT_DATA_MESSAGE))
+                return
+            yield ("full", result.get("formatted_output") or result.get("message") or build_formatted_output(result, subject))
+            return
+        yield ("full", str(result))
+        return
+
+    intent = detect_intent(prompt)
+    if intent in ("explain", "step_by_step", "example", "define"):
+        if context and context.strip() and context.strip() != "No specific context.":
+            out = await explain_topic(prompt, document_context=context, request_id=request_id)
+        else:
+            out = await explain_topic(prompt, document_context=None, request_id=request_id)
+        yield ("full", _clean_markdown(out))
+        return
+
+    doc_mode = bool(group_file_id or (context and context.strip() and "No specific context" not in context))
+    system_prompt = (
+        "You are a helpful study assistant in a group chat. "
+        "Answer clearly and concisely. Use the group's shared documents as context when relevant."
+    )
+    if doc_mode:
+        system_prompt += (
+            " When using document context, base your answer primarily on it; "
+            "if the answer is not in the context, say so and only then use general knowledge."
+        )
+    history = []
+    for m in recent_list[:-1]:
+        if getattr(m, "message_type", None) == "ai" or getattr(m, "sender_type", None) == "ai":
+            history.append({"role": "assistant", "content": m.message})
+        elif m.user_id:
+            history.append({"role": "user", "content": m.message})
+    accumulated = []
+    async for chunk in chat_completion_stream(
+        user_message=prompt,
+        system_prompt=system_prompt,
+        context=context,
+        history=history,
+        request_id=request_id,
+    ):
+        accumulated.append(chunk)
+        yield ("chunk", chunk)
+    yield ("full", _clean_markdown("".join(accumulated)))
+
+
 @app.websocket("/ws/groups/{group_id}")
 async def websocket_group_chat(websocket: WebSocket, group_id: int):
     """Real-time group chat. Auth via cookie. Broadcast messages, persist, handle @ai."""
@@ -2036,6 +2269,7 @@ async def websocket_group_chat(websocket: WebSocket, group_id: int):
                     "file_name": gm.file_name,
                     "group_file_id": getattr(gm, "group_file_id", None),
                     "created_at": gm.created_at.isoformat() if gm.created_at else None,
+                    "updated_at": getattr(gm, "updated_at", None) and gm.updated_at.isoformat() or None,
                     "vote_count": 0,
                 }
                 for wid, (ws, uid, uname) in list(group_connections.get(group_id, {}).items()):
@@ -2099,6 +2333,76 @@ async def websocket_group_chat(websocket: WebSocket, group_id: int):
 
 
 # ==================== Study Plans ====================
+
+async def _study_plan_stream_generator(
+    plan,
+    topic: str,
+    plan_type: str,
+    document_text: Optional[str],
+    duration_days: int,
+    request_id: str,
+    current_user: User,
+    db: Session,
+):
+    """Yield NDJSON lines: request_id, then chunk lines, then done or cancelled. Saves only on success."""
+    def line(s):
+        return (json.dumps(s, ensure_ascii=False) + "\n").encode("utf-8")
+    yield line({"request_id": request_id})
+    accumulated = []
+    try:
+        async for chunk in generate_study_plan_stream(
+            topic, plan_type, document_text, duration_days, request_id=request_id
+        ):
+            accumulated.append(chunk)
+            yield line({"chunk": chunk})
+        plan_content = "".join(accumulated)
+        plan.content = plan_content
+        db.commit()
+        conv = create_conversation(db, current_user, title=plan.title, mode="free")
+        add_message(db, conv.id, "assistant", plan_content)
+        yield line({
+            "done": True,
+            "study_plan_id": plan.id,
+            "content": plan_content,
+            "title": plan.title,
+            "conversation_id": conv.id,
+            "chat_id": conv.id,
+        })
+    except GenerationCancelledError:
+        db.delete(plan)
+        db.commit()
+        yield line({"cancelled": True})
+    finally:
+        cancel_remove(request_id)
+
+
+@app.post("/api/study-plans/create-stream")
+async def api_create_study_plan_stream(
+    topic: str = Form(...),
+    plan_type: str = Form("weekly"),
+    document_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Stream study plan generation. First line is request_id (for cancel). Then chunk lines. Then done or cancelled. No partial save on cancel."""
+    plan = create_study_plan(db, current_user, topic, plan_type, document_id)
+    document_text = None
+    if document_id:
+        doc = db.query(Document).filter(Document.id == document_id, Document.user_id == current_user.id).first()
+        if doc and doc.content_path and os.path.exists(doc.content_path):
+            with open(doc.content_path, "r", encoding="utf-8") as f:
+                document_text = f.read()
+    duration_days = {"daily": 1, "weekly": 7, "monthly": 30}.get(plan_type, 7)
+    request_id = create_request_id()
+    await cancel_register(request_id, current_user.id)
+    return StreamingResponse(
+        _study_plan_stream_generator(
+            plan, topic, plan_type, document_text, duration_days, request_id, current_user, db
+        ),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-store"},
+    )
+
 
 @app.post("/api/study-plans/create")
 async def api_create_study_plan(

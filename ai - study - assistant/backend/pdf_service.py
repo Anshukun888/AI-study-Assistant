@@ -25,6 +25,29 @@ def extract_text_from_image_bytes(data: bytes, filename: str = "") -> str:
         return f"[Could not process image: {e}]"
 
 
+def extract_text_from_docx_bytes(data: bytes) -> Optional[str]:
+    """Extract text from DOCX file bytes. Returns None if python-docx is not installed."""
+    try:
+        from docx import Document as DocxDocument
+        import io
+        doc = DocxDocument(io.BytesIO(data))
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        tables_text = []
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        tables_text.append(cell.text.strip())
+        text = "\n\n".join(paragraphs)
+        if tables_text:
+            text += "\n\n" + "\n".join(tables_text)
+        return text.strip() or "(No text in document)"
+    except ImportError:
+        return None
+    except Exception as e:
+        return f"[Could not process DOCX: {e}]"
+
+
 async def extract_text_from_pdf(file: UploadFile, max_size_mb: int = 50) -> str:
     """
     Extract text from uploaded PDF file.
