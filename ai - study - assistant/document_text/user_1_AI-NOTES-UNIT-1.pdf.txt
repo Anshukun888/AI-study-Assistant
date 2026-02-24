@@ -1,0 +1,811 @@
+ 
+ 
+Unit - I 
+Introduction, History, Intelligent Systems, Foundations of AI, Sub areas of AI, 
+Applications. Problem Solving – State-Space Search and Control Strategies: 
+Introduction, General Problem Solving, Characteristics of Problem, Exhaustive 
+Searches, Heuristic Search Techniques, Iterative-Deepening A*, Constraint 
+Satisfaction 
+Topic: AI Introduction: 
+In today's world, technology is growing very fast, and we are getting in touch 
+with different new technologies day by day. Here, one of the booming 
+technologies of computer science is Artificial Intelligence which is ready to 
++create a new revolution in the world by making intelligent machines.The 
+Artificial Intelligence is now all around us. It is currently working with a 
+variety of subfields, ranging from general to specific, such as self-driving cars, 
+playing chess, proving theorems, playing music, Painting, etc. 
+AI is one of the fascinating and universal fields of Computer science which has 
+a great scope in future. AI holds a tendency to cause a machine to work as a 
+human. 
+
+
+ 
+Artificial Intelligence is composed of two words Artificial and Intelligence, 
+where 
+Artificial 
+defines "man-made," and 
+intelligence 
+defines "thinking 
+power", hence AI means "a man-made thinking power." 
+So, we can define AI as: 
+ "It is a branch of computer science by which we can create intelligent 
+machines which can behave like a human, think like humans, and able to make 
+decisions."  
+Artificial Intelligence exists when a machine can have human based skills such 
+as learning, reasoning, and solving problems 
+With Artificial Intelligence you do not need to preprogram a machine to do 
+some work, despite that you can create a machine with programmed 
+algorithms which can work with own intelligence, and that is the 
+awesomeness of AI. 
+
+
+It is believed that AI is not a new technology, and some people says that as per 
+Greek myth, there were Mechanical men in early days which can work and 
+behave like humans. 
+Why Artificial Intelligence? 
+Before Learning about Artificial Intelligence, we should know that what is the 
+importance of AI and why should we learn it. Following are some main 
+reasons to learn about AI: 
+o With the help of AI, you can create such software or devices which can 
+solve real-world problems very easily and with accuracy such as health 
+issues, marketing, traffic issues, etc. 
+o With the help of AI, you can create your personal virtual Assistant, such 
+as Cortana, Google Assistant, Siri, etc. 
+o With the help of AI, you can build such Robots which can work in an 
+environment where survival of humans can be at risk. 
+o AI opens a path for other new technologies, new devices, and new 
+Opportunities. 
+Goals of Artificial Intelligence: 
+Following are the main goals of Artificial Intelligence: 
+1. Replicate human intelligence 
+2. Solve Knowledge-intensive tasks 
+3. An intelligent connection of perception and action 
+
+
+4. Building a machine which can perform tasks that requires human 
+intelligence such as: 
+o Proving a theorem 
+o Playing chess 
+o Plan some surgical operation 
+o Driving a car in traffic 
+5. Creating some system which can exhibit intelligent behavior, learn new 
+things by itself, demonstrate, explain, and can advise to its user. 
+What Comprises to Artificial Intelligence? 
+Artificial Intelligence is not just a part of computer science even it's so vast 
+and requires lots of other factors which can contribute to it. To create the AI 
+first we should know that how intelligence is composed, so the Intelligence is 
+an intangible part of our brain which is a combination of Reasoning, 
+learning, problem-solving perception, language understanding, etc. 
+To achieve the above factors for a machine or software Artificial Intelligence 
+requires the following discipline: 
+o Mathematics 
+o Biology 
+o Psychology 
+o Sociology 
+o Computer Science 
+o Neurons Study 
+o Statistics 
+
+
+ 
+Advantages of Artificial Intelligence: 
+Following are some main advantages of Artificial Intelligence: 
+o High Accuracy with less errors: AI machines or systems are prone to 
+less errors and high accuracy as it takes decisions as per pre-experience 
+or information. 
+o High-Speed: AI systems can be of very high-speed and fast-decision 
+making, because of that AI systems can beat a chess champion in the 
+Chess game. 
+o High reliability: AI machines are highly reliable and can perform the 
+same action multiple times with high accuracy. 
+o Useful for risky areas: AI machines can be helpful in situations such as 
+defusing a bomb, exploring the ocean floor, where to employ a human 
+can be risky. 
+
+
+o Digital Assistant: AI can be very useful to provide digital assistant to 
+the users such as AI technology is currently used by various E-
+commerce websites to show the products as per customer requirement. 
+o Useful as a public utility: AI can be very useful for public utilities such 
+as a self-driving car which can make our journey safer and hassle-free, 
+facial recognition for security purpose, Natural language processing to 
+communicate with the human in human-language, etc. 
+Disadvantages of Artificial Intelligence: 
+Every technology has some disadvantages, and thesame goes for Artificial 
+intelligence. Being so advantageous technology still, it has some disadvantages 
+which we need to keep in our mind while creating an AI system. Following are 
+the disadvantages of AI: 
+o High Cost: The hardware and software requirement of AI is very costly 
+as it requires lots of maintenance to meet current world requirements. 
+o Can't think out of the box: Even we are making smarter machines with 
+AI, but still they cannot work out of the box, as the robot will only do 
+that work for which they are trained, or programmed. 
+o No feelings and emotions: AI machines can be an outstanding 
+performer, but still it does not have the feeling so it cannot make any 
+kind of emotional attachment with human, and may sometime be 
+harmful for users if the proper care is not taken. 
+o Increase dependency on machines: With the increment of technology, 
+people are getting more dependent on devices and hence they are losing 
+their mental capabilities. 
+
+
+o No Original Creativity: As humans are so creative and can imagine 
+some new ideas but still AI machines cannot beat this power of human 
+intelligence and cannot be creative and imaginative 
+ 
+Topic:History of Artificial Intelligence: 
+Artificial Intelligence is not a new word and not a new technology for 
+researchers. This technology is much older than you would imagine.  
+ 
+ 
+
+
+ 
+Maturation of Artificial Intelligence (1943-1952) 
+o Year 1943: The first work which is now recognized as AI was done by 
+Warren McCulloch and Walter pits in 1943. They proposed a model 
+of artificial neurons. 
+o Year 1949: Donald Hebb demonstrated an updating rule for modifying the 
+connection strength between neurons. His rule is now called Hebbian 
+learning. 
+o Year 1950: The Alan Turing who was an English mathematician and 
+pioneered Machine learning in 1950. Alan Turing publishes "Computing 
+Machinery and Intelligence" in which he proposed a test. The test can 
+check the machine's ability to exhibit intelligent behavior equivalent to 
+human intelligence, called a Turing test. 
+The birth of Artificial Intelligence (1952-1956) 
+o Year 1955: An Allen Newell and Herbert A. Simon created the "first 
+artificial intelligence program"Which was named as "Logic Theorist". This 
+program had proved 38 of 52 Mathematics theorems, and find new and more 
+elegant proofs for some theorems. 
+o Year 1956: The word "Artificial Intelligence" first adopted by American 
+Computer scientist John McCarthy at the Dartmouth Conference. For the 
+first time, AI coined as an academic field. 
+At that time high-level computer languages such as FORTRAN, LISP, or COBOL 
+were invented. And the enthusiasm for AI was very high at that time. 
+
+
+The golden years-Early enthusiasm (1956-1974) 
+o Year 1966: The researchers emphasized developing algorithms which can 
+solve mathematical problems. Joseph Weizenbaum created the first chatbot 
+in 1966, which was named as ELIZA. 
+o Year 1972: The first intelligent humanoid robot was built in Japan which 
+was named as WABOT-1. 
+The first AI winter (1974-1980) 
+o The duration between years 1974 to 1980 was the first AI winter duration. 
+AI winter refers to the time period where computer scientist dealt with a 
+severe shortage of funding from government for AI researches. 
+o During AI winters, an interest of publicity on artificial intelligence was 
+decreased. 
+A boom of AI (1980-1987) 
+o Year 1980: After AI winter duration, AI came back with "Expert System". 
+Expert systems were programmed that emulate the decision-making ability 
+of a human expert. 
+o In the Year 1980, the first national conference of the American Association 
+of Artificial Intelligence was held at Stanford University. 
+The second AI winter (1987-1993) 
+o The duration between the years 1987 to 1993 was the second AI Winter 
+duration. 
+
+
+o Again Investors and government stopped in funding for AI research as due 
+to high cost but not efficient result. The expert system such as XCON was 
+very cost effective. 
+The emergence of intelligent agents (1993-2011) 
+o Year 1997: In the year 1997, IBM Deep Blue beats world chess champion, 
+Gary Kasparov, and became the first computer to beat a world chess 
+champion. 
+o Year 2002: for the first time, AI entered the home in the form of Roomba, a 
+vacuum cleaner. 
+o Year 2006: AI came in the Business world till the year 2006. Companies 
+like Facebook, Twitter, and Netflix also started using AI. 
+ 
+ 
+Deep learning, big data and artificial general intelligence (2011-present) 
+o Year 2011: In the year 2011, IBM's Watson won jeopardy, a quiz show, 
+where it had to solve the complex questions as well as riddles. Watson had 
+proved that it could understand natural language and can solve tricky 
+questions quickly. 
+o Year 2012: Google has launched an Android app feature "Google now", 
+which was able to provide information to the user as a prediction. 
+o Year 2014: In the year 2014, Chatbot "Eugene Goostman" won a 
+competition in the infamous "Turing test." 
+
+
+o Year 2018: The "Project Debater" from IBM debated on complex topics 
+with two master debaters and also performed extremely well. 
+o Google has demonstrated an AI program "Duplex" which was a virtual 
+assistant and which had taken hairdresser appointment on call, and lady on 
+other side didn't notice that she was talking with the machine. 
+Topic:Intelligent system: 
+ intelligent systems can also include sophisticated AI-based software systems, such 
+as chatbots, expert systems and other types of software. 
+Essentially, an intelligent device is anything that contains a functional, although 
+not usually general-purpose, computer with Internet connectivity.  An embedded 
+system may be powerful and capable of complex processing and data analysis, but 
+it is usually specialized for tasks relevant to the host machine. 
+Intelligent systems exist all around us in point-of-sale (POS) terminals, digital 
+televisions, traffic lights, smart meters, automobiles, digital signage and airplane 
+controls, among a great number of other possibilities. Built-in intelligence is an 
+integral component of the developing internet of things (IoT), in which almost 
+everything imaginable can be provided with unique identifiers and the ability to 
+automatically transfer data over a network without requiring human-to-human or 
+human-to-computer interaction.  
+
+
+ 
+Topic:Foundations of AI and sub areas of AI: 
+AI into five distinct research areas  
+  Machine Learning 
+ Expert Systems 
+ Computer Vision 
+ Natural Language Processing 
+ Robotics 
+1.Machine Learning: 
+Machine learning (ML) is the science of empowering machines to make decisions 
+without human intervention. This sub-discipline forms the backbone of AI, 
+enabling computers to learn and interpret patterns in images, sounds, and structured 
+data using multidimensional arrays. ML is further subdivided into four types of 
+learning: 
+ Supervised learning: Given an array of features (i.e., week of the year, price, 
+etc.) and a labeled output variable (e.g., sales), predict the best possible estimate 
+of the label variable given some new input array. 
+ Unsupervised learning: Given an array of features (e.g., demographic 
+information, ZIP code, etc.), expose and visualize hidden relationships and 
+anomalies within the array. 
+
+
+ Semi-supervised: Given an array of features and a limited quantity of some 
+labeled output variable, predict the best possible estimates for the missing label 
+variables. 
+ Reinforcement learning: Given some objective, train an artificial agent to 
+maximize its utility according to some user-defined utility function. 
+ 
+Machine learning is to thank for many high-profile innovations over the 
+past few years, but it’s more difficult to do correctly than commonly 
+believed.  
+ 
+ 
+
+
+2.Expert Systems: 
+An expert system (ES) is an artificial agent which leverages pre-programmed 
+knowledge to offer advice or make decisions. An expert system can take 
+advantage of human insights discovered through trial and error 
+ Expert systems are more predictable and are less likely to make extreme 
+errors when faced with previously-unseen inputs 
+ Expert systems have historically been faster and easier to implement, though 
+ML has become much more accessible in recent years 
+ 
+Google’s Nest thermometer 
+Google’s Nest home automation technology is a prime example of an ES at work. 
+Users program their preferences into Nest over time, enabling the system to 
+automatically adjust housing temperature to desired levels and reduce heating 
+expenses. Using ML to predict desired temperatures could lead to wild swings in 
+settings and energy costs, so user-defined logic is critical to stabilizing these 
+predictions.(Another examples :MYCIN,DENDRAL,PXDES,CADET) 
+ 
+
+
+3.Computer Vision: 
+Computer vision (CV) is the automatic extraction, analysis, and interpretation 
+of images or videos. CV converts photos and videos into numerical arrays, 
+enabling ML algorithms to draw inferences, make predictions, and even generate 
+new images based on user-defined inputs. 
+ 
+ 
+Example of an image being converted to an array: 
+Potential uses for CV have been studied for decades, but CV has only recently 
+become possible at scale thanks to three innovations: 
+ More 
+efficient algorithms: Deep learning and convolutional neural 
+networks.specifically significantly reduces the memory footprint and 
+computational runtime of CV tasks. 
+
+
+ Better computing resources: GPU improvements, distributed architectures 
+(e.g., Spark), and the availability of inexpensive cloud computing resources 
+have made it cheaper than ever to run memory-hungry CV algorithms. 
+ Availability of images to train on: The proliferation of social media platforms, 
+community forums, and digital / mobile cameras have drastically increased the 
+number of publicly-available images that can be used to train CV algorithms. 
+ 
+ 
+These three innovations have opened the floodgates for new CV use cases, 
+including self-driving cars and automated retailers (e.g., Amazon Go). As cameras, 
+LIDAR(light detection and ranging), and other spatial sensors become less 
+expensive, we’ll soon find ways to alleviate many of our most inefficient processes 
+using CV. 
+ 
+
+
+4.Natural Language Processing: 
+Natural language processing (NLP) is the automatic extraction, analysis, and 
+generation of human language. NLP algorithms parse sentences in various ways 
+(e.g., splitting by word, splitting by letter, reading both left-to-right and right-to-left, 
+etc.) to automatically draw inferences about the writer’s meaning and intent. NLP’s 
+various use cases include: 
+ Named entity recognition and conference resolution 
+ Part-of-speech tagging 
+ Reading comprehension & question answering 
+ Machine translation 
+ Text summarization & topic modeling 
+ Spellcheck & autocomplete 
+Like CV, NLP has come a long way over the past decade thanks to innovations in 
+deep learning that have made it faster and easier to train ML models on human 
+language. In the past, engineers would spend hours examining, filtering, and 
+transforming text to avoid computational bottlenecks. Today, out-of-the-box 
+solutions like fast.ai’s NLP library can crush reading comprehension accuracy 
+records without need for time-intensive preprocessing. 
+ 
+
+
+Siri and Alexa are great examples of NLP in action: by listening for “wake words”, 
+these tools allow you to play music, search the Web, create to-do lists, and control 
+popular smart-home products — all while your smartphone stays in your pocket. 
+These virtual assistants will continue to improve over time as they gather data from 
+existing users, unlocking new use cases and integrating with the modern enterprise. 
+5.Robotics: 
+Robotics is the science of designing, constructing, operating, and applying 
+robots to solve human problems. Robots come in thousands of shapes and sizes, 
+making it difficult to nail down the precise meaning of the term.  
+ 
+Boston Dynamic’s Atlas 
+The field of robotics research has evolved at breakneck speed over the past decade. 
+Most robots rely on expert systems to accomplish their objective, but the robots of 
+tomorrow will become exponentially more useful by incorporating machine 
+learning, computer vision, and natural language processing into their operating 
+systems. 
+
+
+Topic:AI Applications: 
+1. AI in E-Commerce: 
+a)Personalized Shopping 
+Artificial Intelligence technology is used to create recommendation engines 
+through 
+which 
+you 
+can 
+engage 
+better 
+with 
+your 
+customers. 
+These 
+recommendations are made in accordance with their browsing history, preference, 
+and interests. It helps in improving your relationship with your customers and their 
+loyalty towards your brand. 
+b)AI-powered Assistants 
+Virtual shopping assistants and chatbots help improve the user experience while 
+shopping online. Natural Language Processing is used to make the conversation 
+sound as human and personal as possible. Moreover, these assistants can have real-
+time engagement with your customers. Did you know that on amazon.com, soon, 
+customer service could be handled by chatbots? 
+c)Fraud Prevention 
+Credit card frauds and fake reviews are two of the most significant issues that E-
+Commerce companies deal with. By considering the usage patterns, AI can help 
+reduce the possibility of credit card frauds taking place. Many customers prefer to 
+buy a product or service based on customer reviews. AI can help identify and 
+handle fake reviews.  
+
+
+2. AI in Navigation: 
+Based on research from MIT, GPS technology can provide users with accurate, 
+timely, and detailed information to improve safety. The technology uses a 
+combination of Convolutional Neural Network and Graph Neural Network, which 
+makes lives easier for users by automatically detecting the number of lanes and 
+road types behind obstructions on the roads. AI is heavily used by Uber and many 
+logistics companies to improve operational efficiency, analyze road traffic, and 
+optimize routes. 
+3. AI in Robotics: 
+Robotics is another field where artificial intelligence applications are commonly 
+used. Robots powered by AI use real-time updates to sense obstacles in its path and 
+pre-plan its journey instantly.  
+It can be used for - 
+ Carrying goods in hospitals, factories, and warehouses 
+ Cleaning offices and large equipment 
+ Inventory management 
+
+
+ 
+ 
+4. AI in Human Resource 
+Did you know that companies use intelligent software to ease the hiring process? 
+Artificial Intelligence helps with blind hiring. Using machine learning software, 
+you can examine applications based on specific parameters. AI drive systems can 
+scan job candidates' profiles, and resumes to provide recruiters an understanding of 
+the talent pool they must choose from.   
+5. AI in Healthcare: 
+Artificial Intelligence finds diverse applications in the healthcare sector. AI is used 
+in healthcare to build sophisticated machines that can detect diseases and identify 
+cancer cells. AI can help analyze chronic conditions with lab and other medical 
+data to ensure early diagnosis. AI uses the combination of historical data and 
+medical intelligence for the discovery of new drugs. 
+6. AI in Agriculture: 
+Artificial Intelligence is used to identify defects and nutrient deficiencies in the 
+soil. This is done using computer vision, robotics, and machine learning, AI can 
+analyze where weeds are growing. AI bots can help to harvest crops at a higher 
+volume and faster pace than human laborers. 
+
+
+7. AI in Gaming: 
+Another sector where Artificial Intelligence applications have found prominence is 
+the gaming sector. AI can be used to create smart, human-like NPCs to interact 
+with the players. 
+It can also be used to predict human behavior using which game design and testing 
+can be improved. The Alien Isolation games released in 2014 uses AI to stalk the 
+player throughout the game. The game uses two Artificial Intelligence systems - 
+‘Director AI’ that frequently knows your location and the ‘Alien AI,’ driven by 
+sensors and behaviors that continuously hunt the player. 
+8. AI in Automobiles: 
+Artificial Intelligence is used to build self-driving vehicles. AI can be used along 
+with the vehicle’s camera, radar, cloud services, GPS, and control signals to 
+operate the vehicle. AI can improve the in-vehicle experience and provide 
+additional systems like emergency braking, blind-spot monitoring, and driver-
+assist steering. 
+9. AI in Social Media: 
+Instagram 
+On Instagram, AI considers your likes and the accounts you follow to determine 
+what posts you are shown on your explore tab.  
+
+
+Facebook 
+Artificial Intelligence is also used along with a tool called DeepText. With this 
+tool, Facebook can understand conversations better. It can be used to translate 
+posts from different languages automatically. 
+Twitter 
+AI is used by Twitter for fraud detection, removing propaganda, and hateful 
+content. Twitter also uses AI to recommend tweets that users might enjoy, based 
+on what type of tweets they engage with. 
+10. AI in Marketing: 
+Artificial intelligence applications are popular in the marketing domain as well. 
+ Using AI, marketers can deliver highly targeted and personalized ads with the 
+help of behavioral analysis, pattern recognition, etc. It also helps with 
+retargeting audiences at the right time to ensure better results and reduced 
+feelings of distrust and annoyance. 
+ AI can help with content marketing in a way that matches the brand's style and 
+voice. It can be used to handle routine tasks like performance, campaign reports, 
+and much more.   
+ Chatbots powered by AI, Natural Language Processing, Natural Language 
+Generation, and Natural Language Understanding can analyze the user's 
+language and respond in the ways humans do.  
+
+
+ AI can provide users with real-time personalizations based on their behavior and 
+can be used to edit and optimize marketing campaigns to fit a local market's 
+needs.  
+Topic: Problem Solving – State-Space Search and Control 
+Strategies: Introduction 
+The reflex agents are known as the simplest agents because they directly map 
+states into actions. Unfortunately, these agents fail to operate in an environment 
+where the mapping is too large to store and learn. Goal-based agent, on the other 
+hand, considers future actions and the desired outcomes. 
+Here, we will discuss one type of goal-based agent known as a problem-solving 
+agent, which uses atomic representation with no internal states visible to 
+the problem-solving algorithms. 
+Problem-solving agent 
+The problem-solving agent perfoms precisely by defining problems and its several 
+solutions. 
+According to psychology, “a problem-solving refers to a state where we wish to 
+reach to a definite goal from a present state or condition.” 
+According to computer science, a problem-solving is a part of artificial 
+intelligence which encompasses a number of techniques such as algorithms, 
+heuristics to solve a problem. 
+Therefore, a problem-solving agent is a goal-driven agent and focuses on 
+satisfying the goal. 
+Steps performed by Problem-solving agent 
+ Goal Formulation: It is the first and simplest step in problem-solving. It organizes 
+the steps/sequence required to formulate one goal out of multiple goals as well as 
+
+
+actions to achieve that goal. Goal formulation is based on the current situation and 
+the agent’s performance measure (discussed below). 
+ Problem Formulation: It is the most important step of problem-solving which 
+decides what actions should be taken to achieve the formulated goal. There are 
+following five components involved in problem formulation: 
+ Initial State: It is the starting state or initial step of the agent towards its goal. 
+ Actions: It is the description of the possible actions available to the agent. 
+ Transition Model: It describes what each action does. 
+ Goal Test: It determines if the given state is a goal state. 
+ Path cost: It assigns a numeric cost to each path that follows the goal. The 
+problem-solving agent selects a cost function, which reflects its performance 
+measure. Remember, an optimal solution has the lowest path cost among all the 
+solutions. 
+Note: Initial state, actions, and transition model together define the state-
+space of the problem implicitly. State-space of a problem is a set of all states 
+which can be reached from the initial state followed by any sequence of actions. 
+The state-space forms a directed map or graph where nodes are the states, links 
+between the nodes are actions, and the path is a sequence of states connected by 
+the sequence of actions. 
+ Search: It identifies all the best possible sequence of actions to reach the goal state 
+from the current state. It takes a problem as an input and returns solution as its 
+output. 
+ Solution: It finds the best algorithm out of various algorithms, which may be 
+proven as the best optimal solution. 
+ Execution: It executes the best optimal solution from the searching algorithms to 
+reach the goal state from the current state. 
+Example Problems 
+
+
+Basically, there are two types of problem approaches: 
+ Toy Problem: It is a concise and exact description of the problem which is used 
+by the researchers to compare the performance of algorithms. 
+ Real-world Problem: It is real-world based problems which require solutions. 
+Unlike a toy problem, it does not depend on descriptions, but we can have a 
+general formulation of the problem. 
+Some Toy Problems 
+ 8 Puzzle Problem: Here, we have a 3×3 matrix with movable tiles numbered from 
+1 to 8 with a blank space. The tile adjacent to the blank space can slide into that 
+space. The objective is to reach a specified goal state similar to the goal state, as 
+shown in the below figure. 
+ In the figure, our task is to convert the current state into goal state by sliding digits 
+into the blank space. 
+ 
+In the above figure, our task is to convert the current(Start) state into goal state by 
+sliding digits into the blank space. 
+The problem formulation is as follows: 
+ States: It describes the location of each numbered tiles and the blank tile. 
+
+
+ Initial State: We can start from any state as the initial state. 
+ Actions: Here, actions of the blank space is defined, i.e., either left, right, up or 
+down 
+ Transition Model: It returns the resulting state as per the given state and actions. 
+ Goal test: It identifies whether we have reached the correct goal-state. 
+ Path cost: The path cost is the number of steps in the path where the cost of each 
+step is 1. 
+Note: The 8-puzzle problem is a type of sliding-block problem which is used for 
+testing new search algorithms in artificial intelligence. 
+ 8-queens problem: The aim of this problem is to place eight queens on a 
+chessboard in an order where no queen may attack another. A queen can attack 
+other queens either diagonally or in same row and column. 
+From the following figure, we can understand the problem as well as its correct 
+solution. 
+ 
+
+
+It is noticed from the above figure that each queen is set into the chessboard in a 
+position where no other queen is placed diagonally, in same row or column. 
+Therefore, it is one right approach to the 8-queens problem. 
+For this problem, there are two main kinds of formulation: 
+ Incremental formulation: It starts from an empty state where the operator 
+augments a queen at each step. 
+Following steps are involved in this formulation: 
+ States: Arrangement of any 0 to 8 queens on the chessboard. 
+ Initial State: An empty chessboard 
+ Actions: Add a queen to any empty box. 
+ Transition model: Returns the chessboard with the queen added in a box. 
+ Goal test: Checks whether 8-queens are placed on the chessboard without any 
+attack. 
+ Path cost: There is no need for path cost because only final states are counted. 
+In this formulation, there is approximately 1.8 x 1014 possible sequence to 
+investigate. 
+ Complete-state formulation: It starts with all the 8-queens on the chessboard and 
+moves them around, saving from the attacks. 
+Following steps are involved in this formulation 
+ States: Arrangement of all the 8 queens one per column with no queen attacking 
+the other queen. 
+ Actions: Move the queen at the location where it is safe from the attacks. 
+This formulation is better than the incremental formulation as it reduces the state 
+space from 1.8 x 1014 to 2057, and it is easy to find the solutions. 
+Some Real-world problems 
+
+
+ Traveling salesperson problem(TSP): It is a touring problem where the 
+salesman can visit each city only once. The objective is to find the shortest tour 
+and sell-out the stuff in each city. 
+ VLSI Layout problem: In this problem, millions of components and connections 
+are positioned on a chip in order to minimize the area, circuit-delays, stray-
+capacitances, and maximizing the manufacturing yield. 
+The layout problem is split into two parts: 
+ Cell layout: Here, the primitive components of the circuit are grouped into cells, 
+each performing its specific function. Each cell has a fixed shape and size. The 
+task is to place the cells on the chip without overlapping each other. 
+ Channel routing: It finds a specific route for each wire through the gaps between 
+the cells. 
+ Protein Design: The objective is to find a sequence of amino acids which will fold 
+into 3D protein having a property to cure some disease. 
+Searching for solutions 
+We have seen many problems. Now, there is a need to search for solutions to solve 
+them. 
+In this section, we will understand how searching can be used by the agent to solve 
+a problem. 
+For solving different kinds of problem, an agent makes use of different strategies 
+to reach the goal by searching the best possible algorithms. This process of 
+searching is known as search strategy. 
+Measuring problem-solving performance 
+Before discussing different search strategies, the performance measure of an 
+algorithm should be measured. Consequently, There are four ways to measure the 
+performance of an algorithm: 
+
+
+Completeness: It measures if the algorithm guarantees to find a solution (if any 
+solution exist). 
+Optimality: It measures if the strategy searches for an optimal solution. 
+Time Complexity: The time taken by the algorithm to find a solution. 
+Space Complexity: Amount of memory required to perform a search. 
+The complexity of an algorithm depends on branching factor or maximum 
+number of successors, depth of the shallowest goal node (i.e., number of steps 
+from root to the path) and the maximum length of any path in a state space. 
+Search Strategies 
+There are two types of strategies that describe a solution for a given problem: 
+Uninformed Search (Blind Search) 
+This type of search strategy does not have any additional information about the 
+states except the information provided in the problem definition. They can only 
+generate the successors and distinguish a goal state from a non-goal state. These 
+type of search does not maintain any internal state, that’s why it is also known 
+as Blind search. 
+There are following types of uninformed searches: 
+ Breadth-first search 
+ Uniform cost search 
+ Depth-first search 
+ Depth-limited search 
+ Iterative deepening search 
+ Bidirectional search 
+Informed Search (Heuristic Search) 
+This type of search strategy contains some additional information about the states 
+beyond the problem definition. This search uses problem-specific knowledge to 
+
+
+find more efficient solutions. This search maintains some sort of internal states via 
+heuristic functions (which provides hints), so it is also called heuristic search. 
+There are following types of informed searches: 
+ Best first search (Greedy search) 
+ A* search 
+TOPIC:General Problem Solving: 
+It was the first useful computer program that came into existence in the AI world. 
+The goal was to make it work as a universal problem-solving machine.GPS was 
+the first program that was intended to solve any general problem 
+To 
+program 
+the 
+GPS, 
+the 
+authors 
+created 
+a 
+new 
+language 
+called Information Processing Language (IPL). The basic premise is to express 
+any problem with a set of well-formed formulas. In a graph, the source refers to 
+the starting node and the sink refers to the ending node.  
+Even though GPS was intended to be a general purpose, it could only solve well-
+defined problems, such as proving mathematical theorems in geometry and logic. 
+It could also solve word puzzles and play chess.  
+Solving a problem with GPS: 
+Let's see how to structure a given problem to solve it using GPS: 
+1. The first step is to define the goals. Let's say our goal is to get some milk 
+from the grocery store. 
+
+
+2. The next step is to define the preconditions. These preconditions are in 
+reference to the goals. To get milk from the grocery store, we need to have 
+a mode of transportation and the grocery store should have milk available. 
+3. After this, we need to define the operators. If my mode of transportation is 
+a car and if the car is low on fuel, then we need to ensure that we can pay 
+the fueling station. We need to ensure that you can pay for the milk at the 
+store. 
+An operator takes care of the conditions and everything that affects them. It 
+consists of actions, preconditions, and the changes resulting from taking actions. 
+In this case, the action is giving money to the grocery store. Of course, this is 
+contingent upon you having the money in the first place, which is the 
+precondition. By giving them the money, you are changing your money 
+condition, which will result in you getting the milk. 
+There are many applications of machine learning that exist today. It is used in 
+image recognition, robotics, speech recognition, predicting stock market 
+behavior, and so on.  
+Topic:Characterstic of problems: 
+In order to choose the most appropriate problem solving method, it is necessary to 
+analyze the problem along various key dimensions. 
+ Is the problem decomposable into a set of independent smaller or easier 
+sub-problems? 
+A very large and composite problem can be easily solved if it can be broken into 
+smaller problems and recursion could be used. 
+
+
+For example, we want to solve :- ∫ 𝑥2 + 3𝑥 + 𝑠𝑖𝑛2𝑥 𝑐𝑜𝑠2𝑥 𝑑𝑥 
+This can be done by breaking it into three smaller problems and solving each by 
+applying specific rules. Adding the results we can find the complete 
+solution.But there are certain problems which cannot be decomposed into sub-
+problems. 
+For example Blocks world problem in which, start and goal state are given as, 
+ 
+Here, solution can be achieved by moving blocks in a sequence such that goal state 
+can be derived. 
+Can solution steps be ignored or at least undone if they prove unwise? 
+Problem fall under three classes, (i) ignorable, (ii) recoverable and (iii) 
+irrecoverable. 
+This classification is with reference to the steps of the solution to a 
+problem.Consider theorem proving. We may later find that it is of no use. We can 
+still proceed further, since nothing is lost by this redundant step. This is an example 
+of ignorable solutions steps. 
+
+
+Now consider the 8 puzzle problem tray and arranged in specific order. 
+While moving from the start state towards goal state, we may make some stupid 
+move but we can backtrack and undo the unwanted move. This only involves 
+additional steps and the solution steps are recoverable. 
+Lastly consider the game of chess. If a wrong move is made, it can neither be 
+ignored nor be recovered. The thing to do is to make the best use of current 
+situation and proceed. This is an example of an irrecoverable solution steps. 
+ Is the problem’s universe predictable? 
+Problems can be classified into those with certain outcome (eight puzzle ) and those 
+with uncertain outcome (playing cards). 
+In certain — outcome problems, planning can be done to generate a sequence of 
+operators that guarantees to lead to solution. 
+Planning helps to avoid unwanted solution steps. 
+For uncertain outcome problems, planning can at best generate a sequence of 
+operators that has a good probability of leading to a solution. 
+ What is the role of knowledge 
+Though one could have unlimited computing power, the size of the knowledge base 
+available for solving the problem does matter in arriving at a good solution. 
+
+
+Take for example the game of playing chess, just the rules for determining legal 
+moves and some simple control mechanism is sufficient to arrive at a solution. 
+But additional knowledge about good strategy and tactics could help to constrain 
+the search and speed up the execution of the program. The solution would then be 
+realistic. 
+Exhaustive Searches: 
+Many important problems require finding an element with a special property in a 
+domain that grows exponentially (or faster) with an instance size. Typically, such 
+problems arise in situations that involve—explicitly or implicitly—combinatorial 
+objects such as permutations, combinations, and subsets of a given set. Many such 
+problems are optimization problems: they ask to find an element that maximizes or 
+minimizes some desired characteristic such as a path length or an assignment cost. 
+  
+We illustrate exhaustive search by applying it to two important problems: the 
+traveling salesman problem, and the knapsack problem. 
+1.Traveling Salesman Problem: 
+The traveling salesman problem (TSP) has been intriguing researchers for the last 
+150 years by its seemingly simple formulation, important applications, and 
+interesting connections to other combinatorial problems. In layman’s terms, the 
+problem asks to find the shortest tour through a given set of n cities that visits each 
+city exactly once before returning to the city where it started. The problem can be 
+conveniently modeled by a weighted graph, with the graph’s vertices representing 
+the cities and the edge weights specifying the distances. Then the problem can be 
+stated as the problem of finding the shortest Hamiltonian circuit of the graph. (A 
+
+
+Hamiltonian circuit is defined as a cycle that passes through all the vertices of the 
+graph exactly once. It is named after the Irish mathematician Sir William Rowan 
+Hamilton (1805–1865), who became interested in such cycles as an application of 
+his algebraic discoveries.) 
+  
+It is easy to see that a Hamiltonian circuit can also be defined as a sequence 
+of n + 1 adjacent vertices vi0 , vi1, . . . , vin−1, vi0 , where the first vertex of the 
+sequence is the same as the last one and all the other n − 1 vertices are distinct. 
+Further, we can assume, with no loss of generality, that all circuits start and end at 
+one particular vertex (they are cycles after all, are they not?). Thus, we can get all 
+the tours by generating all the permutations of n − 1 intermediate cities, compute 
+the tour lengths, and find the shortest among them.  
+An inspection of Figure 3.7 reveals three pairs of tours that differ only by their 
+direction. Hence, we could cut the number of vertex permutations by half. We 
+could, for example, choose any two intermediate vertices, say, b and c, and then 
+consider only permutations in which b precedes c. (This trick implicitly defines a 
+tour’s direction.) 
+2.Knapsack Problem: 
+Here is another well-known problem in algorithmics. Given n items of known 
+weights w1, w2, . . . , wn and values v1, v2, . . . , vn and a knapsack of capacity W , 
+find the most valuable subset of the items that fit into the knapsack. If you do not 
+like the idea of putting yourself in the shoes of a thief who wants to steal the most. 
+
+
+ 
+Heuristic Search: 
+A Heuristic is a technique to solve a problem faster than classic methods, or to find 
+an approximate solution when classic methods cannot. This is a kind of a shortcut 
+as we often trade one of optimality, completeness, accuracy, or precision for speed. 
+A Heuristic (or a heuristic function) takes a look at search algorithms. At each 
+branching step, it evaluates the available information and makes a decision on 
+which branch to follow. 
+It does so by ranking alternatives. The Heuristic is any device that is often effective 
+but will not guarantee work in every case. 
+
+
+So why do we need heuristics? One reason is to produce, in a reasonable amount of 
+time, a solution that is good enough for the problem in question. It doesn’t have to 
+be the best- an approximate solution will do since this is fast enough. 
+Most problems are exponential. Heuristic Search let us reduce this to a rather 
+polynomial number. We use this in AI because we can put it to use in situations 
+where we can’t find known algorithm. 

@@ -1,0 +1,888 @@
+{% extends "base.html" %}
+{% block title %}Chat - AI Study Assistant{% endblock %}
+{% block main_class %}chat-layout{% endblock %}
+{% block nav %}
+<ul class="navbar-nav ms-auto">
+    <li class="nav-item">
+        <button class="btn btn-link nav-link text-white-50" id="darkModeToggle" type="button" title="Toggle dark mode">
+            <i class="bi bi-moon-fill" id="darkModeIcon"></i>
+        </button>
+    </li>
+    <li class="nav-item">
+        <span class="nav-link text-white-50">{{ user.username }}</span>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/auth/logout">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </li>
+</ul>
+{% endblock %}
+{% block content %}
+<!-- Toast container for consistent alerts -->
+<div class="toast-container position-fixed top-0 end-0 p-3" id="alertToastContainer" style="z-index: 1100;"></div>
+<div class="chat-container" id="chatContainer">
+    <!-- Sidebar -->
+    <aside class="chat-sidebar" id="chatSidebar">
+        <div class="sidebar-header">
+            <button class="btn btn-primary w-100 rounded-pill" id="btnNewChat" type="button">
+                <i class="bi bi-plus-lg me-2"></i>New Chat
+            </button>
+        </div>
+        <div class="sidebar-conversations" id="conversationList">
+            {% for conv in conversations %}
+            <div class="conversation-item-wrapper d-flex align-items-center">
+                <a href="/chat?conv_id={{ conv.id }}" class="conversation-item flex-grow-1 {% if current_conversation and current_conversation.id == conv.id %}active{% endif %}" data-id="{{ conv.id }}">
+                    <i class="bi bi-chat-dots me-2"></i>
+                    <span class="conv-title">{{ conv.title }}</span>
+                </a>
+                <div class="dropdown ms-1">
+                    <button class="btn btn-sm btn-link text-muted px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <button class="dropdown-item text-danger btn-delete-conversation" type="button" data-conversation-id="{{ conv.id }}">
+                                <i class="bi bi-trash me-1"></i>Delete chat
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="sidebar-files" id="sidebarFiles">
+            <div class="sidebar-files-title">My files</div>
+            <div class="sidebar-files-list" id="sidebarFilesList">
+                {% for doc in documents %}
+                <div class="file-chip" data-document-id="{{ doc.id }}">
+                    <span class="file-chip-name" title="{{ doc.filename }}">{{ doc.filename }}</span>
+                    <button type="button" class="file-chip-remove btn btn-sm" aria-label="Remove file" data-document-id="{{ doc.id }}"><i class="bi bi-x"></i></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/groups/page/list" class="btn btn-outline-primary btn-sm w-100 mb-1" type="button">
+                <i class="bi bi-people-fill me-1"></i>Study Groups
+            </a>
+            <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="bi bi-file-earmark-pdf me-1"></i>Upload PDF
+            </button>
+        </div>
+    </aside>
+
+    <!-- Mobile sidebar toggle -->
+    <button class="btn btn-outline-secondary chat-sidebar-toggle d-lg-none" type="button" id="sidebarToggle" aria-label="Open chat history">
+        <i class="bi bi-list"></i>
+    </button>
+    <div class="chat-sidebar-overlay d-lg-none" id="sidebarOverlay" aria-hidden="true"></div>
+
+    <!-- Main chat area -->
+    <div class="chat-main">
+        <div class="chat-header d-flex align-items-center justify-content-between py-2 px-3 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-danger btn-sm ms-auto ms-lg-0 order-2 order-lg-0" id="btnClearHistory" title="Delete all messages in this chat" style="display:none;">
+                    <i class="bi bi-trash me-1"></i>Clear History
+                </button>
+                <span class="fw-bold">Mode:</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="chatMode" id="modeFree" value="free" {% if not current_conversation or current_conversation.mode == 'free' %}checked{% endif %}>
+                    <label class="btn btn-outline-primary" for="modeFree">Free Chat</label>
+                    <input type="radio" class="btn-check" name="chatMode" id="modeDocument" value="document" {% if current_conversation and current_conversation.mode == 'document' %}checked{% endif %}>
+                    <label class="btn btn-outline-primary" for="modeDocument">Document</label>
+                    <input type="radio" class="btn-check" name="chatMode" id="modeNotes" value="notes" {% if current_conversation and current_conversation.mode == 'notes' %}checked{% endif %}>
+                    <label class="btn btn-outline-primary" for="modeNotes">Notes</label>
+                </div>
+                <div id="modeDocumentSelect" class="ms-2" style="display:{% if current_conversation and current_conversation.mode == 'document' %}inline-block{% else %}none{% endif %};">
+                    <select class="form-select form-select-sm" id="selectDocument" style="min-width:180px;">
+                        <option value="">Select document...</option>
+                        {% for doc in documents %}
+                        <option value="{{ doc.id }}" {% if current_conversation and current_conversation.document_id == doc.id %}selected{% endif %}>{{ doc.filename }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            {% if not current_conversation %}
+            <div class="empty-state text-center py-5" id="emptyState">
+                <i class="bi bi-chat-heart display-4 text-muted"></i>
+                <h4 class="mt-3">AI Study Assistant</h4>
+                <p class="text-muted">Start a new chat or select a mode above</p>
+                <div class="tool-buttons mt-4 d-flex flex-wrap justify-content-center gap-2">
+                    <button class="btn btn-outline-primary btn-sm tool-btn" data-tool="summarize"><i class="bi bi-list-ul me-1"></i>Summarize</button>
+                    <button class="btn btn-outline-primary btn-sm tool-btn" data-tool="mcq"><i class="bi bi-question-circle me-1"></i>Generate MCQs</button>
+                    <button class="btn btn-outline-primary btn-sm tool-btn" data-tool="explain"><i class="bi bi-diagram-3 me-1"></i>Explain Step-by-Step</button>
+                    <button class="btn btn-outline-primary btn-sm" id="btnExamPredict" title="Predict Exam Questions"><i class="bi bi-graph-up-arrow me-1"></i>Predict Exam Questions</button>
+                </div>
+            </div>
+            {% else %}
+            {% for msg in messages %}
+            <div class="message {% if msg.role == 'user' %}message-user{% else %}message-assistant{% endif %}" data-message-id="{{ msg.id }}" data-role="{{ msg.role }}">
+                <div class="message-avatar">
+                    {% if msg.role == 'user' %}<i class="bi bi-person-circle"></i>{% else %}<i class="bi bi-robot"></i>{% endif %}
+                </div>
+                <div class="message-content">
+                    <div class="message-actions">
+                        {% if msg.role == 'user' %}
+                        <button class="btn-edit-message btn btn-sm btn-link text-muted" data-message-id="{{ msg.id }}" title="Edit message">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn-regenerate btn btn-sm btn-link text-muted" data-message-id="{{ msg.id }}" title="Regenerate response">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="message-text markdown-content" data-raw-content="{{ msg.content | e }}"></div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <div id="notesPanel" class="notes-panel p-3 border-top" style="display:none;">
+            <label class="form-label small">Paste your notes here (used as context for chat):</label>
+            <textarea class="form-control" id="notesContext" rows="4" placeholder="Paste your study notes..."></textarea>
+            <button class="btn btn-sm btn-primary mt-2" id="btnApplyNotes" type="button">Apply & Start Chat</button>
+        </div>
+
+        <div class="chat-input-area p-3">
+            <div id="attachmentPreview" class="attachment-preview mb-2" style="display:none;"></div>
+            <div class="d-flex gap-2 flex-wrap mb-2 align-items-center">
+                <button class="btn btn-outline-secondary btn-sm tool-btn" data-tool="summarize" title="Summarize"><i class="bi bi-list-ul"></i></button>
+                <button class="btn btn-outline-secondary btn-sm tool-btn" data-tool="mcq" title="Generate MCQs"><i class="bi bi-question-circle"></i></button>
+                <button class="btn btn-outline-secondary btn-sm tool-btn" data-tool="explain" title="Explain Step-by-Step"><i class="bi bi-diagram-3"></i></button>
+                <button class="btn btn-outline-secondary btn-sm" id="btnExamPredictBar" title="Predict Exam Questions"><i class="bi bi-graph-up-arrow"></i></button>
+                <div class="ms-auto d-flex gap-1">
+                    <button class="btn btn-outline-success btn-sm" id="btnVoiceCall" title="Call AI - Voice conversation"><i class="bi bi-telephone"></i> Call AI</button>
+                    <button class="btn btn-outline-primary btn-sm" id="btnStudyPlan" title="Create Study Plan"><i class="bi bi-calendar-check"></i> Study Plan</button>
+                </div>
+            </div>
+            <form id="chatForm" class="chat-input-bar" enctype="multipart/form-data">
+                <input type="hidden" id="conversationId" name="conversation_id" value="{{ current_conversation.id if current_conversation else '' }}">
+                <div class="chat-input-top-row">
+                    <label for="fileInput" class="btn-attach" title="Attach PDF or image">
+                        <i class="bi bi-paperclip"></i>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none;">
+                    </label>
+                    <button type="button" class="btn-voice-input" id="btnVoiceInput" title="Tap to speak">
+                        <i class="bi bi-mic"></i>
+                    </button>
+                </div>
+                <div class="chat-input-bottom-row">
+                    <div class="input-wrapper position-relative" id="inputWrapper">
+                        <div id="voiceListeningIndicator" class="voice-listening-indicator d-none">
+                            <span class="voice-pulse"></span>
+                            <span class="voice-text">Listening...</span>
+                        </div>
+                        <textarea class="form-control" id="messageInput" name="content" rows="1" placeholder="Ask anything..." maxlength="10000"></textarea>
+                    </div>
+                    <button type="button" class="btn-voice-output d-none" id="btnVoiceOutput" title="Read response">
+                        <i class="bi bi-volume-up"></i>
+                    </button>
+                    <button class="btn btn-primary" type="submit" id="btnSend" title="Send">
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="uploadForm" method="POST" action="/upload" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload PDF</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select PDF or image</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <small class="text-muted">Max {{ MAX_UPLOAD_SIZE_MB | default(50) }} MB. PDF and images (PNG, JPG) supported.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Exam/Explain modal for input -->
+<div class="modal fade" id="toolInputModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="toolModalTitle">Input</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="toolInput" class="form-label" id="toolInputLabel">Enter topic to explain</label>
+                    <input type="text" class="form-control" id="toolInput" placeholder="e.g., Binary Search">
+                </div>
+                <div id="explainOptions" class="mb-3" style="display: none;">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="explainUseDocument" value="1">
+                        <label class="form-check-label" for="explainUseDocument">Use uploaded document</label>
+                    </div>
+                    <div id="explainDocumentWrap" style="display: none;">
+                        <label for="explainDocumentSelect" class="form-label small">Document</label>
+                        <select class="form-select form-select-sm" id="explainDocumentSelect">
+                            <option value="">Select document...</option>
+                            {% for doc in documents %}
+                            <option value="{{ doc.id }}">{{ doc.filename }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">AI will explain only the topic using this document as the main source.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnToolSubmit">Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Message Modal -->
+<div class="modal fade" id="editMessageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="editMessageInput" class="form-label">Message</label>
+                    <textarea class="form-control" id="editMessageInput" rows="4"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSaveEdit">Save & Regenerate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Study Plan Modal -->
+<div class="modal fade" id="studyPlanModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Study Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="studyPlanTopic" class="form-label">Topic or Subject</label>
+                    <input type="text" class="form-control" id="studyPlanTopic" placeholder="e.g., Machine Learning Fundamentals">
+                </div>
+                <div class="mb-3">
+                    <label for="studyPlanType" class="form-label">Plan Type</label>
+                    <select class="form-select" id="studyPlanType">
+                        <option value="daily">Daily (1 day)</option>
+                        <option value="weekly" selected>Weekly (7 days)</option>
+                        <option value="monthly">Monthly (30 days)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="studyPlanDocument" class="form-label">Reference Document (Optional)</label>
+                    <select class="form-select" id="studyPlanDocument">
+                        <option value="">None</option>
+                        {% for doc in documents %}
+                        <option value="{{ doc.id }}">{{ doc.filename }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnCreateStudyPlan">Create Plan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exam Predictor Modal -->
+<div class="modal fade" id="examPredictModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-graph-up-arrow me-2"></i>Predict Exam Questions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Upload a past year paper (PDF/image) or choose a document from My files. The AI will analyze patterns and predict important topics, likely exam questions, and a revision strategy.</p>
+                <div class="mb-3">
+                    <label for="examPredictSubject" class="form-label">Subject / Topic (optional)</label>
+                    <input type="text" class="form-control" id="examPredictSubject" placeholder="e.g. Python, Data Structures">
+                    <small class="text-muted">Used for the saved session title. Auto-filled from filename if left empty.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="examPredictDocument" class="form-label">Use existing document</label>
+                    <select class="form-select" id="examPredictDocument">
+                        <option value="">Select document...</option>
+                        {% for doc in documents %}
+                        <option value="{{ doc.id }}">{{ doc.filename }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="examPredictFile" class="form-label">Or upload a file (PDF/image)</label>
+                    <input type="file" class="form-control" id="examPredictFile" accept=".pdf,.png,.jpg,.jpeg">
+                    <small class="text-muted">Max {{ MAX_UPLOAD_SIZE_MB | default(50) }} MB</small>
+                </div>
+                <div id="examPredictError" class="alert alert-danger py-2 small d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnExamPredictSubmit"><span class="btn-text">Analyze</span></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exam Predictor Result Modal -->
+<div class="modal fade" id="examPredictResultModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-graph-up-arrow me-2"></i>Exam Prediction Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="examPredictResultBody">
+                <div id="examPredictResultContent"></div>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="dropdown d-inline-block" id="examPredictDownloadDropdownWrap">
+                    <button class="btn btn-outline-success dropdown-toggle d-none" type="button" id="examPredictDownloadBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-download me-1"></i>Download
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="examPredictDownloadBtn">
+                        <li><a class="dropdown-item exam-download-format" href="#" data-format="pdf"><i class="bi bi-file-pdf me-1"></i>PDF</a></li>
+                        <li><a class="dropdown-item exam-download-format" href="#" data-format="html"><i class="bi bi-file-earmark-code me-1"></i>HTML</a></li>
+                        <li><a class="dropdown-item exam-download-format" href="#" data-format="txt"><i class="bi bi-file-text me-1"></i>TXT</a></li>
+                    </ul>
+                </div>
+                <a id="examPredictOpenInChat" href="#" class="btn btn-primary d-none">Open in Chat</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Voice Call Modal -->
+<div class="modal fade" id="voiceCallModal" tabindex="-1" aria-labelledby="voiceCallModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="voiceCallModalLabel"><i class="bi bi-telephone me-2"></i>Voice call with AI</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="voiceCallCloseBtn"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div id="voiceCallStatus" class="voice-call-status">Tap Start to begin</div>
+                <div id="voiceCallMicAnimation" class="voice-call-mic d-none">
+                    <div class="voice-call-mic-ring"></div>
+                    <i class="bi bi-mic-fill voice-call-mic-icon"></i>
+                </div>
+                <div id="voiceCallAISpeaking" class="voice-call-ai-speaking d-none">
+                    <div class="voice-call-ai-pulse"></div>
+                    <i class="bi bi-robot voice-call-ai-icon"></i>
+                </div>
+                <div class="voice-call-transcript mt-4 text-start" id="voiceCallTranscript"></div>
+                <div class="voice-call-controls mt-3 d-flex flex-column align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 w-100" style="max-width: 280px;">
+                        <i class="bi bi-volume-mute text-muted small"></i>
+                        <input type="range" class="form-range flex-grow-1" id="voiceCallVolume" min="0" max="1" step="0.1" value="1" title="Volume">
+                        <i class="bi bi-volume-up text-muted small"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center flex-wrap gap-2">
+                <button type="button" class="btn btn-success btn-lg rounded-pill px-4" id="voiceCallStartBtn">
+                    <i class="bi bi-telephone-fill me-2"></i>Start call
+                </button>
+                <div class="voice-call-active-buttons d-none d-flex flex-wrap justify-content-center align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-lg rounded-pill px-3" id="voiceCallMuteBtn" title="Mute">
+                        <i class="bi bi-mic-fill" id="voiceCallMuteIcon"></i>
+                    </button>
+                    <span class="text-muted small mx-1">Volume</span>
+                    <button type="button" class="btn btn-danger btn-lg rounded-pill px-4" id="voiceCallEndBtn">
+                        <i class="bi bi-telephone-x me-2"></i>End call
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Chat Confirmation Modal -->
+<div class="modal fade" id="deleteChatModal" tabindex="-1" aria-labelledby="deleteChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="deleteChatModalLabel">Delete chat</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Are you sure you want to permanently delete this chat? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="deleteChatModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="deleteChatModalConfirm"><i class="bi bi-trash me-1"></i>Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete File Confirmation Modal -->
+<div class="modal fade" id="deleteFileModal" tabindex="-1" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="deleteFileModalLabel">Delete file</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Are you sure you want to permanently delete this file? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="deleteFileModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="deleteFileModalConfirm"><i class="bi bi-trash me-1"></i>Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clear History Confirmation Modal -->
+<div class="modal fade" id="clearHistoryModal" tabindex="-1" aria-labelledby="clearHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="clearHistoryModalLabel">Clear chat history</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Delete all messages in this chat? The conversation will stay; you can continue in an empty chat. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="clearHistoryModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="clearHistoryModalConfirm"><i class="bi bi-trash me-1"></i>Clear History</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/chat.js"></script>
+<script src="/static/js/study-features.js"></script>
+<script>
+(function() {
+    var voiceCallLoaded = false;
+    function loadVoiceCallAndOpen() {
+        if (voiceCallLoaded) return;
+        voiceCallLoaded = true;
+        var script = document.createElement('script');
+        script.src = '/static/js/voice-call.js';
+        script.onload = function() {
+            var btn = document.getElementById('btnVoiceCall');
+            var modalEl = document.getElementById('voiceCallModal');
+            if (btn && modalEl) {
+                var modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        };
+        document.head.appendChild(script);
+    }
+    document.getElementById('btnVoiceCall')?.addEventListener('click', function(e) {
+        if (!voiceCallLoaded) {
+            e.preventDefault();
+            e.stopPropagation();
+            loadVoiceCallAndOpen();
+        }
+    });
+})();
+</script>
+<script>
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+// Consistent UI alert helper (Bootstrap toast)
+function showAlert(message, type) {
+    type = type || 'info';
+    const container = document.getElementById('alertToastContainer');
+    if (!container) {
+        alert(message);
+        return;
+    }
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-' + type + ' border-0 show';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.innerHTML = '<div class="d-flex"><div class="toast-body">' + escapeHtml(message) + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+    container.appendChild(toastEl);
+    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    toast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+window.showAlert = showAlert;
+
+// Initialize study features
+document.addEventListener('DOMContentLoaded', function() {
+    // Study Plan button
+    document.getElementById('btnStudyPlan')?.addEventListener('click', () => {
+        const modal = new bootstrap.Modal(document.getElementById('studyPlanModal'));
+        modal.show();
+    });
+
+    document.getElementById('btnCreateStudyPlan')?.addEventListener('click', async () => {
+        const topic = document.getElementById('studyPlanTopic').value.trim();
+        const planType = document.getElementById('studyPlanType').value;
+        const documentId = document.getElementById('studyPlanDocument').value || null;
+
+        if (!topic) {
+            alert('Please enter a topic');
+            return;
+        }
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('studyPlanModal'));
+        modal.hide();
+
+        try {
+            await window.createStudyPlan(topic, planType, documentId);
+        } catch (e) {
+            console.error('Failed to create study plan:', e);
+        }
+    });
+
+    // Voice output (read aloud) - voice-to-AI input is handled in chat.js
+    window.setupVoiceOutput && window.setupVoiceOutput();
+
+    // Drag & drop file upload
+    const inputWrapper = document.getElementById('inputWrapper');
+    const fileInput = document.getElementById('fileInput');
+    const attachmentPreview = document.getElementById('attachmentPreview');
+    let draggedFiles = [];
+
+    if (inputWrapper && fileInput) {
+        // Drag & drop handlers
+        inputWrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            inputWrapper.classList.add('drag-over');
+        });
+
+        inputWrapper.addEventListener('dragleave', () => {
+            inputWrapper.classList.remove('drag-over');
+        });
+
+        inputWrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            inputWrapper.classList.remove('drag-over');
+            const files = Array.from(e.dataTransfer.files).filter(f => /\.(pdf|png|jpg|jpeg)$/i.test(f.name));
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(Array.from(e.target.files));
+        });
+
+        window.__attachedFiles = window.__attachedFiles || [];
+        function syncAttachedFiles() {
+            window.__attachedFiles = draggedFiles;
+        }
+
+        function handleFiles(files) {
+            files.forEach(file => {
+                if (/\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
+                    draggedFiles.push(file);
+                    syncAttachedFiles();
+                    showAttachmentChip(file);
+                }
+            });
+        }
+
+        function showAttachmentChip(file) {
+            attachmentPreview.style.display = 'flex';
+            const chip = document.createElement('div');
+            chip.className = 'attachment-chip';
+            chip.innerHTML = `
+                <i class="bi bi-file-pdf"></i>
+                <span>${escapeHtml(file.name)}</span>
+                <button type="button" class="btn-remove" data-filename="${escapeHtml(file.name)}">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            chip.dataset.filename = file.name;
+            chip.querySelector('.btn-remove').addEventListener('click', function() {
+                window.removeAttachment(this);
+            });
+            attachmentPreview.appendChild(chip);
+        }
+
+        window.removeAttachment = function(btn) {
+            const chip = btn && btn.closest ? btn.closest('.attachment-chip') : null;
+            const filename = chip ? chip.dataset.filename : null;
+            if (filename) draggedFiles = draggedFiles.filter(f => f.name !== filename);
+            syncAttachedFiles();
+            if (chip) chip.remove();
+            if (draggedFiles.length === 0) {
+                attachmentPreview.style.display = 'none';
+            }
+        };
+
+        window.__clearAttachments = function() {
+            draggedFiles = [];
+            window.__attachedFiles = [];
+            attachmentPreview.innerHTML = '';
+            attachmentPreview.style.display = 'none';
+        };
+    }
+
+    // File deletion: use modal instead of confirm()
+    let deleteFileModalDocId = null;
+    let deleteFileModalButton = null;
+
+    function showDeleteFileModal(documentId, buttonEl) {
+        deleteFileModalDocId = documentId;
+        deleteFileModalButton = buttonEl;
+        const modal = document.getElementById('deleteFileModal');
+        if (modal) {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+    }
+
+    function hideDeleteFileModal() {
+        const modal = document.getElementById('deleteFileModal');
+        if (modal) {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) bsModal.hide();
+        }
+        deleteFileModalDocId = null;
+        deleteFileModalButton = null;
+    }
+
+    async function confirmDeleteFile() {
+        if (!deleteFileModalDocId) return;
+        const id = deleteFileModalDocId;
+        const buttonEl = deleteFileModalButton;
+        hideDeleteFileModal();
+        try {
+            const resp = await fetch('/api/files/' + id, { method: 'DELETE', credentials: 'include' });
+            if (resp.ok) {
+                const chip = document.querySelector('.file-chip[data-document-id="' + id + '"]');
+                if (chip) chip.remove();
+                const opt = document.querySelector('#selectDocument option[value="' + id + '"]');
+                if (opt) opt.remove();
+            } else {
+                const data = await resp.json().catch(() => ({}));
+                showAlert(data.detail || 'Failed to delete file', 'danger');
+            }
+        } catch (e) {
+            showAlert('Failed to delete file: ' + (e.message || 'Unknown error'), 'danger');
+        }
+    }
+
+    document.getElementById('deleteFileModalCancel')?.addEventListener('click', hideDeleteFileModal);
+    document.getElementById('deleteFileModalConfirm')?.addEventListener('click', confirmDeleteFile);
+
+    // Exam Question Predictor
+    function openExamPredictModal() {
+        const modal = document.getElementById('examPredictModal');
+        if (!modal) return;
+        document.getElementById('examPredictDocument').value = '';
+        document.getElementById('examPredictFile').value = '';
+        const subjectEl = document.getElementById('examPredictSubject');
+        if (subjectEl) subjectEl.value = '';
+        document.getElementById('examPredictError').classList.add('d-none');
+        const btn = document.getElementById('btnExamPredictSubmit');
+        if (btn) { btn.disabled = false; btn.querySelector('.btn-text').textContent = 'Analyze'; }
+        new bootstrap.Modal(modal).show();
+    }
+
+    document.getElementById('btnExamPredict')?.addEventListener('click', openExamPredictModal);
+    document.getElementById('btnExamPredictBar')?.addEventListener('click', openExamPredictModal);
+
+    document.getElementById('btnExamPredictSubmit')?.addEventListener('click', async function() {
+        const docSelect = document.getElementById('examPredictDocument');
+        const fileInput = document.getElementById('examPredictFile');
+        const subjectInput = document.getElementById('examPredictSubject');
+        const errEl = document.getElementById('examPredictError');
+        const submitBtn = document.getElementById('btnExamPredictSubmit');
+        const btnText = submitBtn?.querySelector('.btn-text');
+
+        const documentId = docSelect?.value?.trim() || '';
+        const file = fileInput?.files?.[0];
+
+        if (!documentId && !file) {
+            errEl.textContent = 'Please select a document from the list or upload a PDF/image.';
+            errEl.classList.remove('d-none');
+            return;
+        }
+        errEl.classList.add('d-none');
+        submitBtn.disabled = true;
+        if (btnText) btnText.textContent = 'Analyzing…';
+
+        const formData = new FormData();
+        if (documentId) formData.append('document_id', documentId);
+        if (file) formData.append('file', file, file.name);
+        const subject = subjectInput?.value?.trim();
+        if (subject) formData.append('subject_or_topic', subject);
+
+        try {
+            const resp = await fetch('/exam/predict', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include',
+            });
+            const data = await resp.json().catch(() => ({}));
+
+            if (!resp.ok) {
+                errEl.textContent = data.detail || 'Analysis failed. Try another document or file.';
+                errEl.classList.remove('d-none');
+                return;
+            }
+
+            const inputModal = bootstrap.Modal.getInstance(document.getElementById('examPredictModal'));
+            if (inputModal) inputModal.hide();
+
+            const topics = data.important_topics || [];
+            const repeated = data.repeated_questions || [];
+            const predicted = data.predicted_questions || [];
+            const mostImportant = data.most_important_topics || [];
+            const revisionStrategy = data.revision_strategy || [];
+            const extractedCount = data.extracted_count;
+            const message = data.message || '';
+            const conversationId = data.conversation_id;
+            const sessionTitle = data.session_title || '';
+
+            let html = '';
+            if (extractedCount) html += '<p class="text-muted small mb-3">Extracted ' + extractedCount + ' question(s) from the document.</p>';
+            if (message) html += '<p class="text-info small mb-3">' + escapeHtml(message) + '</p>';
+            if (conversationId) html += '<p class="text-success small mb-3">Saved to session: ' + escapeHtml(sessionTitle || 'Predicted Exam Questions') + '</p>';
+
+            html += '<div class="row g-3">';
+
+            html += '<div class="col-12"><div class="card"><div class="card-header bg-success text-white"><strong>Predicted Exam Questions</strong></div><div class="card-body">';
+            if (predicted.length === 0) html += '<p class="text-muted mb-0">None predicted</p>';
+            else {
+                predicted.forEach(function(q, idx) {
+                    const topic = typeof q === 'object' ? (q.topic || '') : 'General';
+                    const importance = typeof q === 'object' ? (q.importance || 3) : 3;
+                    const stars = '⭐'.repeat(Math.min(5, Math.max(1, parseInt(importance, 10) || 3)));
+                    const qType = typeof q === 'object' ? (q.question_type || 'Theory') : 'Theory';
+                    const prob = typeof q === 'object' ? (q.probability || 'Medium') : 'Medium';
+                    const questionText = typeof q === 'object' ? (q.question || q.text || '') : (q || '');
+                    const why = typeof q === 'object' ? (q.why_important || '') : '';
+                    html += '<div class="border-bottom pb-3 mb-3' + (idx === predicted.length - 1 ? '' : '') + '">';
+                    html += '<div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1"><strong>Topic: ' + escapeHtml(topic) + '</strong> <span class="badge bg-secondary">' + escapeHtml(qType) + '</span> <span class="badge bg-info">' + escapeHtml(prob) + '</span></div>';
+                    html += '<div class="small text-muted mb-1">Importance: ' + stars + '</div>';
+                    html += '<p class="mb-1"><strong>Question:</strong> ' + escapeHtml(questionText) + '</p>';
+                    if (why) html += '<p class="small text-muted mb-0"><strong>Why:</strong> ' + escapeHtml(why) + '</p>';
+                    html += '</div>';
+                });
+            }
+            html += '</div></div></div>';
+
+            html += '<div class="col-md-6"><div class="card h-100"><div class="card-header bg-primary text-white"><strong>Most Important Topics</strong></div><div class="card-body"><ul class="list-unstyled mb-0">';
+            if (mostImportant.length === 0) html += '<li class="text-muted">None</li>';
+            else mostImportant.forEach(function(t) {
+                const name = typeof t === 'string' ? t : (t.topic || t.name || '');
+                html += '<li class="mb-1">' + escapeHtml(name) + '</li>';
+            });
+            html += '</ul></div></div></div>';
+
+            html += '<div class="col-md-6"><div class="card h-100"><div class="card-header bg-warning text-dark"><strong>Revision Strategy</strong></div><div class="card-body"><ul class="list-unstyled mb-0">';
+            const strategyList = Array.isArray(revisionStrategy) ? revisionStrategy : (revisionStrategy ? [revisionStrategy] : []);
+            if (strategyList.length === 0) html += '<li class="text-muted">None</li>';
+            else strategyList.forEach(function(s) {
+                const line = typeof s === 'string' ? s : String(s);
+                if (line.trim()) html += '<li class="mb-1">' + escapeHtml(line) + '</li>';
+            });
+            html += '</ul></div></div></div>';
+
+            html += '<div class="col-12"><div class="card"><div class="card-header bg-secondary text-white"><strong>Important Topics (from analysis)</strong></div><div class="card-body"><ul class="list-unstyled mb-0">';
+            if (topics.length === 0) html += '<li class="text-muted">None identified</li>';
+            else topics.forEach(function(t) {
+                const topic = typeof t === 'object' ? (t.topic || '') : t;
+                const freq = typeof t === 'object' ? (t.frequency || '') : '';
+                const reason = typeof t === 'object' ? (t.reason || '') : '';
+                html += '<li class="mb-2"><strong>' + escapeHtml(topic) + '</strong> <span class="badge bg-secondary">' + escapeHtml(freq) + '</span><br><small class="text-muted">' + escapeHtml(reason) + '</small></li>';
+            });
+            html += '</ul></div></div></div>';
+
+            html += '<div class="col-12"><div class="card"><div class="card-header bg-dark text-white"><strong>Repeated Questions</strong></div><div class="card-body"><ul class="list-unstyled mb-0">';
+            if (repeated.length === 0) html += '<li class="text-muted">None identified</li>';
+            else repeated.forEach(function(r) {
+                const q = typeof r === 'object' ? (r.question || '') : r;
+                const times = typeof r === 'object' ? (r.times_asked || 0) : 0;
+                html += '<li class="mb-2"><small>' + escapeHtml(q) + '</small><br><span class="badge bg-warning text-dark">Asked ' + times + ' time(s)</span></li>';
+            });
+            html += '</ul></div></div></div>';
+
+            html += '</div>';
+
+            document.getElementById('examPredictResultContent').innerHTML = html;
+            const openInChat = document.getElementById('examPredictOpenInChat');
+            const downloadBtn = document.getElementById('examPredictDownloadBtn');
+            if (openInChat) {
+                if (conversationId) {
+                    openInChat.href = '/chat?conv_id=' + conversationId;
+                    openInChat.classList.remove('d-none');
+                    if (downloadBtn) {
+                        downloadBtn.classList.remove('d-none');
+                        downloadBtn.setAttribute('data-conversation-id', String(conversationId));
+                    }
+                } else {
+                    openInChat.classList.add('d-none');
+                    if (downloadBtn) downloadBtn.classList.add('d-none');
+                }
+            }
+            new bootstrap.Modal(document.getElementById('examPredictResultModal')).show();
+        } catch (e) {
+            errEl.textContent = 'Error: ' + (e.message || 'Network error');
+            errEl.classList.remove('d-none');
+        } finally {
+            submitBtn.disabled = false;
+            if (btnText) btnText.textContent = 'Analyze';
+        }
+    });
+
+    document.querySelectorAll('.file-chip-remove').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const id = this.getAttribute('data-document-id');
+            if (!id) return;
+            showDeleteFileModal(id, this);
+        });
+    });
+
+    // Exam result modal: download as PDF/HTML/TXT
+    document.querySelectorAll('.exam-download-format').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const format = this.getAttribute('data-format');
+            const btn = document.getElementById('examPredictDownloadBtn');
+            const convId = btn?.getAttribute('data-conversation-id');
+            if (!convId || !format) return;
+            const url = '/chat/' + convId + '/export?format=' + format;
+            window.open(url, '_blank', 'noopener');
+        });
+    });
+});
+</script>
+{% endblock %}

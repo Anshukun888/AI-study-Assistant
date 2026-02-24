@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} - Study Group{% endblock %}
+{% block main_class %}chat-layout{% endblock %}
+{% block nav %}
+<ul class="navbar-nav ms-auto">
+    <li class="nav-item">
+        <a class="nav-link" href="/groups/page/list"><i class="bi bi-people me-1"></i>All Groups</a>
+    </li>
+    <li class="nav-item">
+        <span class="nav-link text-white-50">{{ user.username }}</span>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/auth/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    </li>
+</ul>
+{% endblock %}
+{% block content %}
+<div class="toast-container position-fixed top-0 end-0 p-3" id="alertToastContainer" style="z-index: 1100;"></div>
+<div class="chat-container" id="groupChatContainer">
+    <aside class="chat-sidebar">
+        <div class="sidebar-header">
+            <a href="/groups/page/list" class="btn btn-outline-secondary btn-sm w-100 rounded-pill">
+                <i class="bi bi-arrow-left me-2"></i>Back to Groups
+            </a>
+        </div>
+        <!-- Members (online + all) -->
+        <div class="sidebar-section mt-2">
+            <h6 class="sidebar-section-title text-muted small text-uppercase mb-2"><i class="bi bi-people me-1"></i>Members</h6>
+            <div id="groupOnlineList" class="small">
+                <span class="text-muted">Loading...</span>
+            </div>
+            <ul id="groupMembersList" class="list-unstyled small mb-0">
+                {% for m in members %}
+                <li class="d-flex align-items-center gap-1 py-1" title="{{ m.role }}">
+                    <i class="bi bi-person-circle text-secondary"></i>
+                    <span>{{ m.username }}</span>
+                    <span class="badge bg-secondary ms-1">{{ m.role }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <!-- Shared Files -->
+        <div class="sidebar-section mt-3">
+            <h6 class="sidebar-section-title text-muted small text-uppercase mb-2"><i class="bi bi-folder2 me-1"></i>Files</h6>
+            <div id="groupFilesList" class="small">
+                <span class="text-muted">Loading...</span>
+            </div>
+            <div class="mt-1">
+                <label for="groupFileInputSidebar" class="btn btn-outline-secondary btn-sm w-100 mb-0">
+                    <i class="bi bi-upload me-1"></i>Upload
+                </label>
+                <input type="file" id="groupFileInputSidebar" accept=".pdf,.png,.jpg,.jpeg" style="display:none;">
+            </div>
+        </div>
+        <!-- AI Tools quick actions -->
+        <div class="sidebar-section mt-3">
+            <h6 class="sidebar-section-title text-muted small text-uppercase mb-2"><i class="bi bi-robot me-1"></i>AI Tools</h6>
+            <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-outline-primary btn-sm ai-quick-btn" data-prefix="@ai Summarize">Summarize</button>
+                <button type="button" class="btn btn-outline-primary btn-sm ai-quick-btn" data-prefix="@ai Explain ">Explain</button>
+                <button type="button" class="btn btn-outline-primary btn-sm ai-quick-btn" data-prefix="@ai Generate MCQs">MCQ</button>
+                <button type="button" class="btn btn-outline-primary btn-sm ai-quick-btn" data-prefix="@ai Predict exam questions">Exam</button>
+            </div>
+        </div>
+        <div class="sidebar-footer mt-3">
+            <a href="/groups/page/list" class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-plus-lg me-1"></i>Create / Join Groups</a>
+        </div>
+    </aside>
+    <div class="chat-main">
+        <div class="chat-header d-flex align-items-center justify-content-between py-2 px-3 border-bottom">
+            <h5 class="mb-0"><i class="bi bi-people-fill me-2"></i>{{ group.name }}</h5>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if is_group_admin %}
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btnGroupClearHistory" title="Delete all messages in this group (admin only)">
+                    <i class="bi bi-trash me-1"></i>Clear History
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnGroupInvite" title="Copy invite link">
+                    <i class="bi bi-link-45deg"></i> Invite
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnGroupInsights" title="Group insights">
+                    <i class="bi bi-graph-up"></i> Insights
+                </button>
+                <button type="button" class="btn btn-outline-warning btn-sm" id="btnGroupLeave" title="Leave this group">
+                    <i class="bi bi-box-arrow-right me-1"></i>Leave
+                </button>
+                {% if is_group_admin %}
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btnGroupDelete" title="Delete group (admin only)">
+                    <i class="bi bi-trash me-1"></i>Delete group
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        <div id="pinnedMessageWrap" class="pinned-message-wrap border-bottom bg-light px-3 py-2 d-none">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-pin-angle-fill text-primary mt-1"></i>
+                <div class="flex-grow-1">
+                    <small class="text-muted">Pinned</small>
+                    <div id="pinnedMessageContent" class="small"></div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-messages" id="groupChatMessages">
+            <div class="text-center py-4 text-muted" id="messagesLoading">Loading messages...</div>
+        </div>
+        <div id="typingIndicatorWrap" class="px-3 py-1 border-top bg-light d-none small text-muted">
+            <span id="typingIndicatorText"></span>
+        </div>
+        <div class="chat-input-area p-3 border-top">
+            <div id="groupAttachmentPreview" class="attachment-preview mb-2" style="display:none;"></div>
+            <form id="groupChatForm" class="chat-input-bar">
+                <div class="chat-input-top-row">
+                    <label for="groupFileInput" class="btn-attach" title="Attach PDF or image">
+                        <i class="bi bi-paperclip"></i>
+                        <input type="file" id="groupFileInput" accept=".pdf,.png,.jpg,.jpeg" style="display:none;">
+                    </label>
+                </div>
+                <div class="chat-input-bottom-row">
+                    <div class="input-wrapper position-relative">
+                        <textarea class="form-control" id="groupMessageInput" rows="1" placeholder="Type a message... Use @ai to ask the AI" maxlength="10000"></textarea>
+                    </div>
+                    <button class="btn btn-primary" type="submit" id="btnGroupSend" title="Send">
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </div>
+            </form>
+            <p class="small text-muted mt-1 mb-0">
+                Tip: Type <strong>@ai</strong> to ask the AI. Select a file in the Files panel and ask to use it as context.
+                <span id="selectedFileForAi" class="d-none ms-1">Using file: <strong id="selectedFileForAiName"></strong> <button type="button" class="btn btn-link btn-sm p-0 ms-1" id="clearSelectedFileForAi">Clear</button></span>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Clear Group History Modal (admin only) -->
+<div class="modal fade" id="groupClearHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Clear group chat history</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Delete all messages in this group? All members will see an empty chat. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="groupClearHistoryModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="groupClearHistoryModalConfirm"><i class="bi bi-trash me-1"></i>Clear History</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leave Group Modal -->
+<div class="modal fade" id="groupLeaveModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Leave group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Leave this group? You will need an invite to rejoin.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="groupLeaveModalCancel">Cancel</button>
+                <button type="button" class="btn btn-warning" id="groupLeaveModalConfirm"><i class="bi bi-box-arrow-right me-1"></i>Leave</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Group Modal (admin only) -->
+<div class="modal fade" id="groupDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger">Delete group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Permanently delete this group? All messages, files, and members will be removed. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="groupDeleteModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="groupDeleteModalConfirm"><i class="bi bi-trash me-1"></i>Delete group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group Insights Modal -->
+<div class="modal fade" id="groupInsightsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-graph-up me-2"></i>Group Insights</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="groupInsightsBody">
+                <div class="text-center py-3 text-muted">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+<script>
+window.GROUP_ID = {{ group.id }};
+window.GROUP_NAME = {{ group.name | tojson }};
+window.CURRENT_USER_ID = {{ user.id }};
+window.CURRENT_USERNAME = {{ user.username | tojson }};
+window.PINNED_MESSAGE_ID = {% if pinned_message %}{{ pinned_message.id }}{% else %}null{% endif %};
+</script>
+<script src="/static/js/group_chat.js"></script>
+{% endblock %}

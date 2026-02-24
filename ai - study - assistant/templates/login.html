@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Login - AI Study Assistant{% endblock %}
+{% block brand_link %}/{% endblock %}
+{% block nav %}
+<ul class="navbar-nav ms-auto">
+    <li class="nav-item">
+        <a class="nav-link" href="/auth/register">Register</a>
+    </li>
+</ul>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-body p-5">
+                <h2 class="card-title text-center mb-4">
+                    <i class="bi bi-box-arrow-in-right text-primary"></i> Login
+                </h2>
+                <form method="POST" action="/auth/login">
+                    <input type="hidden" name="next_url" value="{{ next_url or '' }}">
+                    <div class="mb-3">
+                        <label for="identifier" class="form-label">Email or Username</label>
+                        <input type="text" class="form-control" id="identifier" name="identifier" required placeholder="you@example.com or your_username">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control password-input" id="password" name="password" required>
+                            <button class="btn btn-outline-secondary toggle-password" type="button">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                    </button>
+                    {% if google_client_id %}
+                    <div class="mt-3 text-center">
+                        <span class="text-muted small">or</span>
+                    </div>
+                    <div id="googleSignInBtn" class="mt-2"></div>
+                    {% endif %}
+                </form>
+                <p class="text-center mt-3 mb-0">
+                    Don't have an account? <a href="/auth/register">Register</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/main.js"></script>
+{% if google_client_id %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function() {
+    var clientId = {{ google_client_id|tojson }};
+    if (!clientId) return;
+    function renderGoogleBtn() {
+        if (typeof google === 'undefined') { setTimeout(renderGoogleBtn, 100); return; }
+        google.accounts.id.initialize({
+            client_id: clientId,
+            callback: function(res) {
+                if (!res || !res.credential) return;
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/auth/google';
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'credential';
+                input.value = res.credential;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+        google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {
+            type: 'standard',
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            width: 320
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderGoogleBtn);
+    } else {
+        renderGoogleBtn();
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}

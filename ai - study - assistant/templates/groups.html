@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Study Groups - AI Study Assistant{% endblock %}
+{% block main_class %}chat-layout{% endblock %}
+{% block nav %}
+<ul class="navbar-nav ms-auto">
+    <li class="nav-item">
+        <a class="nav-link" href="/chat"><i class="bi bi-chat-dots me-1"></i>My Chats</a>
+    </li>
+    <li class="nav-item">
+        <span class="nav-link text-white-50">{{ user.username }}</span>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/auth/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    </li>
+</ul>
+{% endblock %}
+{% block content %}
+<div class="toast-container position-fixed top-0 end-0 p-3" id="alertToastContainer" style="z-index: 1100;"></div>
+<div class="chat-container">
+    <aside class="chat-sidebar">
+        <div class="sidebar-header">
+            <button class="btn btn-primary w-100 rounded-pill" id="btnCreateGroup" type="button">
+                <i class="bi bi-plus-lg me-2"></i>Create Group
+            </button>
+            <button class="btn btn-outline-primary w-100 rounded-pill mt-2" id="btnJoinWithInvite" type="button" title="Paste an invite link to join a group">
+                <i class="bi bi-link-45deg me-2"></i>Join with invite link
+            </button>
+        </div>
+        <div class="sidebar-conversations" id="groupsList">
+            {% for item in groups_with_roles %}
+            {% set g = item.group %}
+            {% set role = item.role %}
+            <div class="conversation-item-wrapper d-flex align-items-center">
+                <a href="/groups/{{ g.id }}" class="conversation-item flex-grow-1 d-block text-decoration-none" data-id="{{ g.id }}">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <span class="conv-title">{{ g.name }}</span>
+                    <span class="badge bg-secondary ms-1">{{ role }}</span>
+                </a>
+                <div class="dropdown ms-1">
+                    <button class="btn btn-sm btn-link text-muted px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Group actions">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/groups/{{ g.id }}"><i class="bi bi-chat-dots me-1"></i>Open</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button type="button" class="dropdown-item text-warning btn-leave-group" data-group-id="{{ g.id }}" data-group-name="{{ g.name }}"><i class="bi bi-box-arrow-right me-1"></i>Leave group</button></li>
+                        {% if role == 'admin' %}
+                        <li><button type="button" class="dropdown-item text-danger btn-delete-group" data-group-id="{{ g.id }}" data-group-name="{{ g.name }}"><i class="bi bi-trash me-1"></i>Delete group</button></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not groups %}
+            <p class="text-muted small px-2 mt-2">No groups yet. Create one to start studying together.</p>
+            {% endif %}
+        </div>
+    </aside>
+    <div class="chat-main d-flex align-items-center justify-content-center">
+        <div class="text-center py-5">
+            <i class="bi bi-people display-4 text-muted"></i>
+            <h4 class="mt-3">Collaborative Study Groups</h4>
+            <p class="text-muted">Create a group or select one from the sidebar to chat, share documents, and use the AI assistant together.</p>
+            <p class="small text-muted">Type <strong>@ai</strong> in group chat to ask the AI (e.g. @ai summarize this document, @ai quiz us).</p>
+        </div>
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Study Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="groupName" class="form-label">Group name</label>
+                    <input type="text" class="form-control" id="groupName" placeholder="e.g. CS 101 Study Group" maxlength="255">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnCreateGroupSubmit"><i class="bi bi-plus me-1"></i>Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leave Group Modal -->
+<div class="modal fade" id="leaveGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Leave group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Leave <strong id="leaveGroupName"></strong>? You will need an invite to rejoin.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="leaveGroupModalCancel">Cancel</button>
+                <button type="button" class="btn btn-warning" id="leaveGroupModalConfirm"><i class="bi bi-box-arrow-right me-1"></i>Leave</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Group Modal (admin only) -->
+<div class="modal fade" id="deleteGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger">Delete group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-body mb-0">Permanently delete <strong id="deleteGroupName"></strong>? All messages, files, and members will be removed. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" id="deleteGroupModalCancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="deleteGroupModalConfirm"><i class="bi bi-trash me-1"></i>Delete group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Join with invite link Modal -->
+<div class="modal fade" id="joinInviteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-link-45deg me-2"></i>Join with invite link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Paste the full invite link (e.g. <code>https://yoursite.com/groups/invite/abc123...</code>) or just the token.</p>
+                <div class="mb-3">
+                    <label for="inviteLinkInput" class="form-label">Invite link or token</label>
+                    <input type="text" class="form-control" id="inviteLinkInput" placeholder="Paste link or token here">
+                    <div id="inviteLinkError" class="form-text text-danger d-none"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnJoinInviteSubmit"><i class="bi bi-box-arrow-in-right me-1"></i>Join group</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/groups.js"></script>
+{% endblock %}
