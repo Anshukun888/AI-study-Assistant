@@ -80,6 +80,18 @@ Predictions are based only on the provided data; the AI is instructed not to hal
   - Toggle (☀️/🌙), preference in `localStorage`, auto-detect from `prefers-color-scheme`.  
 - **Performance**  
   - Voice call script is lazy-loaded when you first open the call modal.
+- **Group chat**
+  - **No PDF/file upload**: Group study chat does not allow PDF or file uploads (single-user Free Chat still supports document upload). Shared Files in the sidebar is read-only in group chat.
+  - **Typing indicator**: "User is typing…" (or the username) appears while another member is composing; it disappears when the message is sent. Styled for mobile and desktop without overlap.
+  - **Clean messages**: No username, date, or time on message popup/hover; sender color and AI vs user styling are preserved. Copy code buttons on AI code blocks.
+  - **Unread indicators**: Small blue dot next to each group in the groups list (sidebar and mobile cards) when there are new messages; dot clears when the user opens the group or scrolls to bottom/focuses input. In-chat blue dot in the header when there are new messages below the fold.
+  - **Mobile**: One "Create / Join Groups" entry (sidebar/hamburger only; duplicate removed from main content). Stop/Cancel for AI is visible and tappable. Fixed bottom input, scrollable messages.
+- **Upload Files**
+  - UI labels use “Upload Files” (replacing “Upload PDF”). Supported types: PDF, images (PNG, JPG, JPEG), DOCX. Group chat does not support file upload.
+- **Study plan**
+  - **Stop/Cancel**: In both single-user Free Chat and group study chat, a Stop/Cancel button is visible when a study plan is generating. Backend allows graceful termination per user; frontend shows toast "Study plan generation stopped." Partial or incomplete plans are not saved. User can restart generation if needed.
+
+For detailed mobile and desktop chat behavior (typing indicator, unread dots, clean messages, no PDF in group chat), see [docs/CHAT_UX.md](docs/CHAT_UX.md).
 
 ## Features
 
@@ -333,3 +345,4 @@ Backend: `backend/voice_utils.py` exposes `clean_text_for_voice(text: str) -> st
 - **No per-group lock**: No "one AI at a time per group" limit; each request has its own `request_id` and can be cancelled independently.
 - **Efficient message load**: `GET /groups/{id}/messages` uses batched queries for usernames and vote counts (no N+1). AI context uses only the last 10 messages and group documents; no full history fetch during generation.
 - **UI**: Loading/Stop is shown only to the user who triggered the request; pin updates in-place without reload.
+
